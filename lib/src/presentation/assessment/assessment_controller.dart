@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../domain/assessment/assessment.dart';
 import '../../domain/assessment/generate_assessment_use_case.dart';
 import '../../data/assessment/assessment_remote_datasource.dart';
@@ -6,8 +7,7 @@ import '../../data/assessment/assessment_repository_impl.dart';
 
 // Providers
 final assessmentRemoteDatasourceProvider = Provider((ref) {
-  // Use a fallback or environment variable
-  const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
   return AssessmentRemoteDatasource(apiKey: apiKey);
 });
 

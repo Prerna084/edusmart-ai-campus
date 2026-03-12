@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
 import '../assessment/assessment_screen.dart';
+import '../history/history_screen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -99,7 +100,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const AssessmentScreen(),
     const Center(child: Text('Dashboard (Coming Soon)')),
-    const Center(child: Text('History (Coming Soon)')),
+    const HistoryScreen(),
   ];
 
   @override

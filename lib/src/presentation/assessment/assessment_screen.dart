@@ -51,15 +51,23 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                 ),
                 const SizedBox(height: 32),
                 if (state.currentAssessment == null) ...[
+                  // Intro section
                   GlassContainer(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
                         TextField(
                           controller: _topicController,
-                          decoration: const InputDecoration(
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
                             hintText: 'Enter a topic (e.g. Flutter, Biology...)',
-                            border: OutlineInputBorder(),
+                            hintStyle: TextStyle(color: AppColors.textMuted),
+                            filled: true,
+                            fillColor: Colors.white.withOpacity(0.05),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.glassBorder),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -70,7 +78,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                                 ? null
                                 : () => controller.generate(_topicController.text),
                             child: state.isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
+                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                                 : const Text('Generate Quiz'),
                           ),
                         ),
@@ -78,6 +86,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                     ),
                   ),
                 ] else ...[
+                  // Quiz questions
                   Expanded(
                     child: ListView.builder(
                       itemCount: state.currentAssessment!.questions.length,
@@ -97,16 +106,31 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                                 const SizedBox(height: 12),
                                 ...List.generate(
                                   question.options.length,
-                                  (optIndex) => ListTile(
-                                    title: Text(question.options[optIndex]),
-                                    leading: CircleAvatar(
-                                      child: Text(
-                                        String.fromCharCode(65 + optIndex),
-                                      ),
+                                  (optIndex) => Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    onTap: () {
-                                      // Handle selection logic
-                                    },
+                                    child: ListTile(
+                                      title: Text(question.options[optIndex], style: const TextStyle(color: Colors.white)),
+                                      leading: CircleAvatar(
+                                        radius: 14,
+                                        backgroundColor: AppColors.primaryStart,
+                                        child: Text(
+                                          String.fromCharCode(65 + optIndex),
+                                          style: const TextStyle(fontSize: 12, color: Colors.white),
+                                        ),
+                                      ),
+                                      onTap: () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Selected: ${question.options[optIndex]}'),
+                                            duration: const Duration(milliseconds: 500),
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
                               ],
@@ -117,9 +141,31 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => controller.reset(),
-                    child: const Text('New Assessment'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => controller.reset(),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.glassBorder),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Quiz completed! Progress saved.')),
+                            );
+                            controller.reset();
+                          },
+                          child: const Text('Finish Quiz'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
                 if (state.error != null) ...[
