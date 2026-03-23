@@ -7,7 +7,11 @@ import '../../data/assessment/assessment_repository_impl.dart';
 
 // Providers
 final assessmentRemoteDatasourceProvider = Provider((ref) {
-  final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+  const dartDefineKey = String.fromEnvironment('GEMINI_API_KEY');
+  final dotenvKey = dotenv.env['GEMINI_API_KEY'];
+  
+  final apiKey = dartDefineKey.isNotEmpty ? dartDefineKey : (dotenvKey ?? '');
+  
   return AssessmentRemoteDatasource(apiKey: apiKey);
 });
 

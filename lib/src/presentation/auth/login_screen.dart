@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
-import '../assessment/assessment_screen.dart';
-import '../history/history_screen.dart';
+import '../dashboard/dashboard_screen.dart';
+import '../home/home_screen.dart';
+import '../syllabus/syllabus_screen.dart';
+import '../chatbot/chatbot_screen.dart';
+import '../profile/profile_screen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -12,11 +15,7 @@ class LoginScreen extends StatelessWidget {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primaryStart, AppColors.primaryEnd],
-          ),
+          color: AppColors.background,
         ),
         child: Center(
           child: Padding(
@@ -26,12 +25,12 @@ class LoginScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.school, size: 64, color: Colors.white),
+                  const Icon(Icons.school, size: 64, color: AppColors.primaryStart),
                   const SizedBox(height: 16),
                   Text(
                     'EduSmart AI',
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -40,9 +39,9 @@ class LoginScreen extends StatelessWidget {
                     decoration: InputDecoration(
                       hintText: 'Email',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: AppColors.background,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -53,9 +52,9 @@ class LoginScreen extends StatelessWidget {
                     decoration: InputDecoration(
                       hintText: 'Password',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: AppColors.background,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -64,10 +63,6 @@ class LoginScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.primaryStart,
-                      ),
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
@@ -97,19 +92,33 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    const AssessmentScreen(),
-    const Center(child: Text('Dashboard (Coming Soon)')),
-    const HistoryScreen(),
-  ];
+  late List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(
+        onTabNavigation: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+      ),
+      const SyllabusScreen(),
+      const ChatbotScreen(),
+      const DashboardScreen(),
+      const ProfileScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.glassBorder)),
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
@@ -117,10 +126,13 @@ class _MainScreenState extends State<MainScreen> {
           backgroundColor: AppColors.background,
           selectedItemColor: AppColors.accent,
           unselectedItemColor: AppColors.textSecondary,
+          type: BottomNavigationBarType.fixed,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Assessment'),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Syllabus'),
+            BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: 'AI Tutor'),
             BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),

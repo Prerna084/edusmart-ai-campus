@@ -24,25 +24,27 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          width: width,
-          height: height,
-          padding: padding,
-          decoration: BoxDecoration(
-            color: color ?? AppColors.surface.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: AppColors.glassBorder,
-              width: 1.5,
-            ),
+    return Container(
+      width: width,
+      height: height,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ?? AppColors.surface,
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A3E2A1E), // Soft dark shadow
+            offset: Offset(4, 4),
+            blurRadius: 10,
           ),
-          child: child,
-        ),
+          BoxShadow(
+            color: Colors.white, // Light highlight
+            offset: Offset(-4, -4),
+            blurRadius: 10,
+          ),
+        ],
       ),
+      child: child,
     );
   }
 }

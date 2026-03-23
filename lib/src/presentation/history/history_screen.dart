@@ -15,11 +15,7 @@ class HistoryScreen extends ConsumerWidget {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.background, Color(0xFF1E293B)],
-          ),
+          color: AppColors.background,
         ),
         child: SafeArea(
           child: Padding(
@@ -65,13 +61,13 @@ class HistoryScreen extends ConsumerWidget {
                                 child: ListTile(
                                   title: Text(
                                     assessment.title,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                   ),
                                   subtitle: Text(
                                     '$date\n${assessment.questions.length} Questions',
                                     style: TextStyle(color: AppColors.textSecondary),
                                   ),
-                                  trailing: const Icon(Icons.chevron_right, color: Colors.white),
+                                  trailing: const Icon(Icons.chevron_right, color: AppColors.primaryStart),
                                   onTap: () {
                                     // Could show details or retake
                                   },

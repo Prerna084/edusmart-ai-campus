@@ -28,11 +28,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.background, Color(0xFF1E293B)],
-          ),
+          color: AppColors.background,
         ),
         child: SafeArea(
           child: Padding(
@@ -58,15 +54,15 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       children: [
                         TextField(
                           controller: _topicController,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(color: AppColors.textPrimary),
                           decoration: InputDecoration(
                             hintText: 'Enter a topic (e.g. Flutter, Biology...)',
-                            hintStyle: TextStyle(color: AppColors.textMuted),
+                            hintStyle: const TextStyle(color: AppColors.textMuted),
                             filled: true,
-                            fillColor: Colors.white.withOpacity(0.05),
+                            fillColor: AppColors.background,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.glassBorder),
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
                             ),
                           ),
                         ),
@@ -109,11 +105,11 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                                   (optIndex) => Container(
                                     margin: const EdgeInsets.only(bottom: 8),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(8),
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: ListTile(
-                                      title: Text(question.options[optIndex], style: const TextStyle(color: Colors.white)),
+                                      title: Text(question.options[optIndex], style: const TextStyle(color: AppColors.textPrimary)),
                                       leading: CircleAvatar(
                                         radius: 14,
                                         backgroundColor: AppColors.primaryStart,
@@ -147,8 +143,8 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                         child: OutlinedButton(
                           onPressed: () => controller.reset(),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.glassBorder),
-                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: AppColors.textMuted),
+                            foregroundColor: AppColors.textPrimary,
                           ),
                           child: const Text('Cancel'),
                         ),
