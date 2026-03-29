@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../widgets/glass_container.dart';
+import 'register_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -54,6 +55,13 @@ class ProfileScreen extends StatelessWidget {
                 title: 'Account',
                 items: [
                   _ListTileItem(icon: Icons.person_outline, label: 'Personal Information'),
+                  _ListTileItem(
+                    icon: Icons.face_retouching_natural, 
+                    label: 'Enroll Face Attendance',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));
+                    },
+                  ),
                   _ListTileItem(icon: Icons.school_outlined, label: 'Academic Records'),
                   _ListTileItem(icon: Icons.security, label: 'Security & Password'),
                 ],
@@ -126,7 +134,7 @@ class ProfileScreen extends StatelessWidget {
                         const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       ],
                     ),
-                    onTap: () {},
+                    onTap: item.onTap ?? () {},
                   ),
                   if (!isLast)
                     const Divider(height: 1, color: AppColors.glassBorder),
@@ -144,6 +152,7 @@ class _ListTileItem {
   final IconData icon;
   final String label;
   final String? trailing;
+  final VoidCallback? onTap;
 
-  _ListTileItem({required this.icon, required this.label, this.trailing});
+  _ListTileItem({required this.icon, required this.label, this.trailing, this.onTap});
 }
