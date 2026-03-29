@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+
+import '../../core/network/api_base_url.dart';
 import '../../core/theme/app_colors.dart';
 import '../widgets/glass_container.dart';
 
@@ -18,10 +22,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final nameController = TextEditingController();
   bool _isLoading = false;
 
+  String get _apiBaseUrl => resolveApiBaseUrl();
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
   Future<void> pickImage() async {
     final pickedFile = await picker.pickImage(
       source: ImageSource.camera,
       preferredCameraDevice: CameraDevice.front,
+      imageQuality: 100,
     );
 
     if (pickedFile != null) {
@@ -32,9 +45,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> registerUser() async {
-    if (_image == null || nameController.text.isEmpty) {
+    if (_image == null || nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a name and capture your face.")),
+        const SnackBar(
+          content: Text('Please enter a name and capture your face.'),
+        ),
       );
       return;
     }
@@ -44,54 +59,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      // For Android Emulator localhost: 10.0.2.2
-      // For physical device, change to your PC's IP address (e.g., 192.168.1.X)
-      var request = http.MultipartRequest(
+      final request = http.MultipartRequest(
         'POST',
-        Uri.parse("http://10.0.2.2:8000/register/"),
+        Uri.parse('$_apiBaseUrl/register/'),
       );
 
-      request.fields['name'] = nameController.text;
-
+      request.fields['name'] = nameController.text.trim();
       request.files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          _image!.path,
-        ),
+        await http.MultipartFile.fromPath('file', _image!.path),
       );
 
-      var response = await request.send();
+      final response = await request.send();
+      final body = await response.stream.bytesToString();
+
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isLoading = false;
       });
 
       if (response.statusCode == 200) {
-        if (!mounted) return;
+        final data = jsonDecode(body) as Map<String, dynamic>;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("✅ Face Registered Successfully!"),
+          SnackBar(
+            content: Text('Face registered for ${data['name']}.'),
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.pop(context); // Go back after success
+        Navigator.pop(context);
       } else {
-        if (!mounted) return;
+        final message = body.contains('No face found')
+            ? 'No face found. Retake the photo with your full face centered, good light, and if possible without glasses.'
+            : 'Registration failed: $body';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("❌ Registration Failed: Status ${response.statusCode}"),
+            content: Text(message),
             backgroundColor: AppColors.error,
           ),
         );
       }
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _isLoading = false;
       });
-      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("❌ Network Error: Make sure FastAPI backend is running.\nDetails: $e"),
+          content: Text(
+            'Network error: make sure the FastAPI backend is running at $_apiBaseUrl.\nDetails: $e',
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -103,7 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("Enroll Face Attendance"),
+        title: const Text('Enroll Face Attendance'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -112,13 +134,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           children: [
             const Text(
-              "Register your face to seamlessly mark your attendance when entering the classroom via CCTV.",
+              'Register your face to seamlessly mark your attendance when entering the classroom via CCTV.',
               style: TextStyle(color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            
-            // Image Preview Container
             GestureDetector(
               onTap: pickImage,
               child: GlassContainer(
@@ -133,37 +153,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.camera_alt, size: 48, color: AppColors.primaryStart.withOpacity(0.5)),
+                          Icon(
+                            Icons.camera_alt,
+                            size: 48,
+                            color: AppColors.primaryStart.withOpacity(0.5),
+                          ),
                           const SizedBox(height: 8),
-                          const Text("Tap to Capture", style: TextStyle(color: AppColors.textSecondary)),
+                          const Text(
+                            'Tap to Capture',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
                         ],
                       ),
               ),
             ),
             const SizedBox(height: 32),
-            
-            // Name Input
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
-                labelText: "Full Name",
+                labelText: 'Full Name',
                 prefixIcon: Icon(Icons.person_outline),
               ),
             ),
             const SizedBox(height: 48),
-            
-            // Register Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : registerUser,
-                child: _isLoading 
+                child: _isLoading
                     ? const SizedBox(
-                        height: 24, 
-                        width: 24, 
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
-                    : const Text("Upload to System"),
+                    : const Text('Upload to System'),
               ),
             ),
           ],

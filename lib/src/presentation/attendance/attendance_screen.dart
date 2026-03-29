@@ -1,5 +1,11 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../core/network/dio_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../widgets/glass_container.dart';
 
@@ -10,10 +16,15 @@ class AttendanceScreen extends ConsumerStatefulWidget {
   ConsumerState<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends ConsumerState<AttendanceScreen> with SingleTickerProviderStateMixin {
+class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
+    with SingleTickerProviderStateMixin {
   bool _isScanning = false;
   bool _isSuccess = false;
+  XFile? _capturedImage;
+  String _statusMessage = 'Position your face in the frame to check in.';
+  String? _matchedUserName;
   late AnimationController _animationController;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -34,18 +45,92 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> with Single
     setState(() {
       _isScanning = true;
       _isSuccess = false;
+      _matchedUserName = null;
+      _statusMessage = 'Opening camera...';
     });
-    
+
+    final image = await _picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.front,
+      imageQuality: 85,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (image == null) {
+      setState(() {
+        _isScanning = false;
+        _statusMessage = 'Capture cancelled. Try again when you are ready.';
+      });
+      return;
+    }
+
+    _capturedImage = image;
     _animationController.repeat(reverse: true);
-    
-    // Simulate API match delay
-    await Future.delayed(const Duration(seconds: 3));
-    
-    _animationController.stop();
-    setState(() {
-      _isScanning = false;
-      _isSuccess = true;
-    });
+
+    try {
+      setState(() {
+        _statusMessage = 'Scanning your face... Please hold still.';
+      });
+
+      final dio = ref.read(dioProvider);
+      final response = await dio.post<Map<String, dynamic>>(
+        '/attendance/mark',
+        data: FormData.fromMap({
+          'file': await MultipartFile.fromFile(
+            image.path,
+            filename: image.name,
+          ),
+        }),
+      );
+
+      final data = response.data ?? <String, dynamic>{};
+      final user = data['user'] as Map<String, dynamic>?;
+      final attendanceMarked = data['attendance_marked'] == true;
+
+      if (!mounted) {
+        return;
+      }
+
+      _animationController.stop();
+      setState(() {
+        _isScanning = false;
+        _isSuccess = true;
+        _matchedUserName = user?['name']?.toString();
+        _statusMessage = attendanceMarked
+            ? 'Attendance marked successfully!'
+            : 'Attendance already marked for today.';
+      });
+    } on DioException catch (error) {
+      _animationController.stop();
+      final responseData = error.response?.data;
+      final detail = responseData is Map<String, dynamic>
+          ? responseData['detail']?.toString()
+          : null;
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isScanning = false;
+        _isSuccess = false;
+        _statusMessage = detail ?? 'Unable to connect to the attendance server.';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      _animationController.stop();
+      setState(() {
+        _isScanning = false;
+        _isSuccess = false;
+        _statusMessage = 'Something went wrong while scanning. Please try again.';
+      });
+    }
   }
 
   @override
@@ -68,8 +153,6 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> with Single
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 48),
-              
-              // Scanner Viewfinder
               Center(
                 child: GlassContainer(
                   width: 280,
@@ -78,13 +161,28 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> with Single
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Placeholder Avatar representing the camera feed
-                      if (_isSuccess)
-                        const Icon(Icons.check_circle, color: AppColors.success, size: 100)
+                      if (_capturedImage != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(32),
+                          child: Image.file(
+                            File(_capturedImage!.path),
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else if (_isSuccess)
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                          size: 100,
+                        )
                       else
-                        Icon(Icons.face, size: 160, color: AppColors.primaryStart.withOpacity(0.2)),
-
-                      // Animated Scanning Line
+                        Icon(
+                          Icons.face,
+                          size: 160,
+                          color: AppColors.primaryStart.withOpacity(0.2),
+                        ),
                       if (_isScanning)
                         AnimatedBuilder(
                           animation: _animationController,
@@ -101,50 +199,59 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> with Single
                                       color: AppColors.accent.withOpacity(0.5),
                                       blurRadius: 10,
                                       spreadRadius: 2,
-                                    )
+                                    ),
                                   ],
                                 ),
                               ),
                             );
                           },
                         ),
-                        
-                      // Frame Corners
                       if (!_isSuccess) ...[
-                        Positioned(top: 16, left: 16, child: _buildCorner(0)),
-                        Positioned(top: 16, right: 16, child: _buildCorner(1)),
-                        Positioned(bottom: 16, left: 16, child: _buildCorner(2)),
-                        Positioned(bottom: 16, right: 16, child: _buildCorner(3)),
+                        Positioned(
+                          top: 16,
+                          left: 16,
+                          child: _buildCorner(0),
+                        ),
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: _buildCorner(1),
+                        ),
+                        Positioned(
+                          bottom: 16,
+                          left: 16,
+                          child: _buildCorner(2),
+                        ),
+                        Positioned(
+                          bottom: 16,
+                          right: 16,
+                          child: _buildCorner(3),
+                        ),
                       ],
                     ],
                   ),
                 ),
               ),
-              
               const Spacer(),
-              
-              // Status Text
               Center(
                 child: Text(
-                  _isSuccess 
-                      ? 'Attendance marked successfully!' 
-                      : _isScanning 
-                          ? 'Scanning your face... Please hold still.' 
-                          : 'Position your face in the frame to check in.',
+                  _matchedUserName == null
+                      ? _statusMessage
+                      : '$_statusMessage\n$_matchedUserName',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: _isSuccess ? AppColors.success : AppColors.textPrimary,
-                  ),
+                        color: _isSuccess
+                            ? AppColors.success
+                            : AppColors.textPrimary,
+                      ),
                 ),
               ),
               const SizedBox(height: 32),
-              
-              // Action Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isScanning || _isSuccess ? null : _startScan,
-                  child: Text(_isSuccess ? 'Checked In' : 'Start Scan'),
+                  onPressed: _isScanning ? null : _startScan,
+                  child: Text(_isSuccess ? 'Scan Again' : 'Start Scan'),
                 ),
               ),
             ],
@@ -155,16 +262,27 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> with Single
   }
 
   Widget _buildCorner(int index) {
-    // A simple little hook for the corners of the scanner
     return Container(
       width: 32,
       height: 32,
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: index < 2 ? AppColors.primaryStart : Colors.transparent, width: 4),
-          bottom: BorderSide(color: index >= 2 ? AppColors.primaryStart : Colors.transparent, width: 4),
-          left: BorderSide(color: index % 2 == 0 ? AppColors.primaryStart : Colors.transparent, width: 4),
-          right: BorderSide(color: index % 2 != 0 ? AppColors.primaryStart : Colors.transparent, width: 4),
+          top: BorderSide(
+            color: index < 2 ? AppColors.primaryStart : Colors.transparent,
+            width: 4,
+          ),
+          bottom: BorderSide(
+            color: index >= 2 ? AppColors.primaryStart : Colors.transparent,
+            width: 4,
+          ),
+          left: BorderSide(
+            color: index % 2 == 0 ? AppColors.primaryStart : Colors.transparent,
+            width: 4,
+          ),
+          right: BorderSide(
+            color: index % 2 != 0 ? AppColors.primaryStart : Colors.transparent,
+            width: 4,
+          ),
         ),
       ),
     );
