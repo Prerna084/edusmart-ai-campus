@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../assessment/assessment_controller.dart';
 
 enum ActivityIconType {
   quiz,
@@ -51,61 +52,43 @@ class DashboardMetrics {
   });
 }
 
-class DashboardNotifier extends StateNotifier<AsyncValue<DashboardMetrics>> {
-  DashboardNotifier() : super(const AsyncValue.loading()) {
-    _loadMetrics();
+final dashboardProvider = Provider<DashboardMetrics>((ref) {
+  final attempts = ref.watch(quizAttemptProvider);
+
+  final quizzesTaken = attempts.length;
+  final averageScore = quizzesTaken == 0
+      ? 0
+      : (attempts.map((a) => a.scorePercent).reduce((a, b) => a + b) / quizzesTaken).round();
+
+  String improvement = '0%';
+  if (quizzesTaken >= 2) {
+    final latest = attempts.first.scorePercent;
+    final previous = attempts[1].scorePercent;
+    final delta = latest - previous;
+    improvement = delta >= 0 ? '+$delta%' : '$delta%';
   }
 
-  Future<void> _loadMetrics() async {
-    state = const AsyncValue.loading();
-    
-    try {
-      // Simulate network request latency
-      await Future.delayed(const Duration(milliseconds: 800));
+  final recentActivities = attempts.take(8).map((attempt) {
+    return ActivityItem(
+      title: attempt.title,
+      timeAgo: _relativeTime(attempt.completedAt),
+      score: '${attempt.scorePercent}%',
+      iconType: ActivityIconType.quiz,
+    );
+  }).toList();
 
-      final metrics = DashboardMetrics(
-        averageScore: 88,
-        quizzesTaken: 14,
-        improvement: '+18%',
-        recentActivities: [
-          const ActivityItem(
-            title: 'Completed Flutter State Quiz',
-            timeAgo: '1 hour ago',
-            score: '92%',
-            iconType: ActivityIconType.quiz,
-          ),
-          const ActivityItem(
-            title: 'Read Architecture Guide',
-            timeAgo: '3 hours ago',
-            score: null,
-            iconType: ActivityIconType.book,
-          ),
-          const ActivityItem(
-            title: 'Practiced Dart Algorithms',
-            timeAgo: 'Yesterday',
-            score: '100%',
-            iconType: ActivityIconType.code,
-          ),
-          const ActivityItem(
-            title: 'Reviewed Syllabus Status',
-            timeAgo: 'Yesterday',
-            score: null,
-            iconType: ActivityIconType.history,
-          ),
-        ],
-      );
-
-      state = AsyncValue.data(metrics);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-    }
-  }
-
-  Future<void> refresh() async {
-    await _loadMetrics();
-  }
-}
-
-final dashboardProvider = StateNotifierProvider<DashboardNotifier, AsyncValue<DashboardMetrics>>((ref) {
-  return DashboardNotifier();
+  return DashboardMetrics(
+    averageScore: averageScore,
+    quizzesTaken: quizzesTaken,
+    improvement: improvement,
+    recentActivities: recentActivities,
+  );
 });
+
+String _relativeTime(DateTime when) {
+  final diff = DateTime.now().difference(when);
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  return '${diff.inDays}d ago';
+}

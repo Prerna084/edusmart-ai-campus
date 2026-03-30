@@ -9,60 +9,56 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Watch the dashboard metrics state
-    final asyncMetrics = ref.watch(dashboardProvider);
+    final metrics = ref.watch(dashboardProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primaryStart,
-          backgroundColor: AppColors.surface,
-          onRefresh: () => ref.read(dashboardProvider.notifier).refresh(),
-          child: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(24.0),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    Text(
-                      'Performance Dashboard',
-                      style: Theme.of(context).textTheme.displayMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Monitor your progress and recent activities.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 32),
-
-                    // 2. Conditional UI based on AsyncValue state
-                    asyncMetrics.when(
-                      data: (metrics) => _buildDashboardContent(context, metrics),
-                      error: (err, stack) => Center(
-                        child: Text(
-                          'Failed to load metrics: $err',
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                      ),
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 40),
-                        child: Center(
-                          child: CircularProgressIndicator(color: AppColors.primaryStart),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(24.0),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Text(
+                    'Performance Dashboard',
+                    style: Theme.of(context).textTheme.displayMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Monitor your progress and recent activities.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 32),
+                  _buildDashboardContent(context, metrics),
+                ]),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildDashboardContent(BuildContext context, DashboardMetrics metrics) {
+    if (metrics.quizzesTaken == 0) {
+      return GlassContainer(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: const [
+            Icon(Icons.insights, color: AppColors.textMuted),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No assessment data yet. Complete an AI quiz to populate your dashboard.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

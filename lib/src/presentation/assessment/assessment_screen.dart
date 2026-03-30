@@ -13,6 +13,7 @@ class AssessmentScreen extends ConsumerStatefulWidget {
 
 class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
   final TextEditingController _topicController = TextEditingController();
+  final Map<int, int> _selectedAnswers = {};
 
   @override
   void dispose() {
@@ -72,7 +73,10 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                           child: ElevatedButton(
                             onPressed: state.isLoading
                                 ? null
-                                : () => controller.generate(_topicController.text),
+                                : () {
+                                    _selectedAnswers.clear();
+                                    controller.generate(_topicController.text);
+                                  },
                             child: state.isLoading
                                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                                 : const Text('Generate Quiz'),
@@ -112,19 +116,18 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                                       title: Text(question.options[optIndex], style: const TextStyle(color: AppColors.textPrimary)),
                                       leading: CircleAvatar(
                                         radius: 14,
-                                        backgroundColor: AppColors.primaryStart,
+                                        backgroundColor: _selectedAnswers[index] == optIndex
+                                            ? AppColors.success
+                                            : AppColors.primaryStart,
                                         child: Text(
                                           String.fromCharCode(65 + optIndex),
                                           style: const TextStyle(fontSize: 12, color: Colors.white),
                                         ),
                                       ),
                                       onTap: () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Selected: ${question.options[optIndex]}'),
-                                            duration: const Duration(milliseconds: 500),
-                                          ),
-                                        );
+                                        setState(() {
+                                          _selectedAnswers[index] = optIndex;
+                                        });
                                       },
                                     ),
                                   ),
@@ -141,7 +144,10 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => controller.reset(),
+                          onPressed: () {
+                            _selectedAnswers.clear();
+                            controller.reset();
+                          },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: AppColors.textMuted),
                             foregroundColor: AppColors.textPrimary,
@@ -153,10 +159,28 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
+                            if (state.currentAssessment == null) return;
+                            final total = state.currentAssessment!.questions.length;
+                            if (_selectedAnswers.length < total) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please answer all questions before finishing.')),
+                              );
+                              return;
+                            }
+
+                            final correct = state.currentAssessment!.questions
+                                .asMap()
+                                .entries
+                                .where((entry) => _selectedAnswers[entry.key] == entry.value.correctOptionIndex)
+                                .length;
+                            final percent = total == 0 ? 0 : ((correct / total) * 100).round();
+
+                            controller.completeCurrentAssessment(_selectedAnswers);
+                            _selectedAnswers.clear();
+
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Quiz completed! Progress saved.')),
+                              SnackBar(content: Text('Quiz completed! Score: $percent% ($correct/$total)')),
                             );
-                            controller.reset();
                           },
                           child: const Text('Finish Quiz'),
                         ),
