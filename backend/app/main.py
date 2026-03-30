@@ -163,21 +163,110 @@ async def ask_tutor(chat: ChatMessage):
     """
     await asyncio.sleep(1.5)  # Simulate API thinking time
     
-    msg_lower = chat.message.lower()
+    msg_lower = chat.message.strip().lower()
     response = "I'm your AI Tutor! Ask me anything about your syllabus, Flutter, Python, or AI concepts."
-    
-    if "flutter" in msg_lower or "riverpod" in msg_lower:
-        response = "Flutter is fantastic for responsive UI! By using Riverpod, you can seamlessly tie backend data (like FastAPIs) into an elegant, reactive state without hassle. Need a code snippet for state management?"
+
+    basic_intents = ["start with the basics", "from scratch", "fundamentals"]
+    affirmative_intents = ["yes", "yeah", "yup", "ok", "okay", "sure", "please"]
+    negative_intents = ["no", "nope", "not now", "later"]
+
+    if "dsa" in msg_lower or "algorithm" in msg_lower:
+        response = (
+            "Great topic. Beginner DSA roadmap:\n"
+            "1) Arrays and Strings\n"
+            "2) Hashing\n"
+            "3) Two Pointers + Sliding Window\n"
+            "4) Linked List\n"
+            "5) Stack and Queue\n"
+            "6) Trees and basic graphs\n\n"
+            "Let's start with Arrays first. Say 'arrays basics' or 'arrays practice questions'."
+        )
+    elif "arrays basics" in msg_lower or ("array" in msg_lower and "basic" in msg_lower):
+        response = (
+            "Arrays for beginners:\n"
+            "- Array stores elements in contiguous memory\n"
+            "- Access by index is O(1)\n"
+            "- Searching in unsorted array is O(n)\n"
+            "- Insert/delete in middle is O(n)\n\n"
+            "Core starter problems: find max, reverse array, move zeros, two-sum."
+        )
+    elif "arrays" in msg_lower or "array" in msg_lower:
+        response = (
+            "Good choice. For Arrays, do this order:\n"
+            "1) Traversal and indexing\n"
+            "2) Min/Max and frequency count\n"
+            "3) Two-sum\n"
+            "4) Prefix sum basics\n"
+            "5) Sliding window intro\n\n"
+            "Say 'arrays practice questions' and I'll give you a mini set."
+        )
+    elif "practice" in msg_lower and ("array" in msg_lower or "dsa" in msg_lower or "algorithm" in msg_lower):
+        response = (
+            "Beginner practice (Arrays):\n"
+            "1) Largest element in an array\n"
+            "2) Second largest element\n"
+            "3) Move all zeros to end\n"
+            "4) Left rotate array by one\n"
+            "5) Two-sum (return indices)\n\n"
+            "If you want, I can send step-by-step hints for each."
+        )
+    elif any(intent in msg_lower for intent in basic_intents) or msg_lower in {"beginner", "beginners"}:
+        response = (
+            "Great choice. Let's start with the basics in 3 steps:\n"
+            "1) Core concept: understand what the topic solves.\n"
+            "2) Small example: build one tiny working example.\n"
+            "3) Practice: solve 2 beginner questions and review mistakes.\n\n"
+            "Tell me your exact topic (for example: Flutter widgets, Riverpod state, FastAPI routes), and I'll give a beginner roadmap."
+        )
+    elif msg_lower in affirmative_intents:
+        response = (
+            "Awesome. Share your topic name and your current level (beginner/intermediate), "
+            "and I will give you a step-by-step study plan with examples."
+        )
+    elif msg_lower in negative_intents:
+        response = "No problem. Whenever you're ready, send a topic and I will help you study it step by step."
+    elif "flutter" in msg_lower or "riverpod" in msg_lower:
+        response = (
+            "Flutter basics roadmap:\n"
+            "1) Widgets (Stateless vs Stateful)\n"
+            "2) Layouts (Row, Column, Expanded, ListView)\n"
+            "3) State management (setState -> Riverpod)\n"
+            "4) API calls and model parsing\n\n"
+            "If you want, I can start with a beginner Riverpod counter example."
+        )
     elif "python" in msg_lower or "fastapi" in msg_lower:
-        response = "FastAPI is a modern, fast web framework for building APIs with Python. It natively handles async functions making it perfect for operations like AI requests or database interactions."
-    elif "hello" in msg_lower or "hi" in msg_lower:
-        response = "Hello! I'm here to help you study. Which topic from your syllabus are we tackling today?"
+        response = (
+            "FastAPI basics roadmap:\n"
+            "1) Path operations (GET/POST)\n"
+            "2) Request body with Pydantic models\n"
+            "3) Validation and error handling\n"
+            "4) Database integration with SQLAlchemy\n\n"
+            "Say 'show example' and I'll provide a simple endpoint + schema."
+        )
     elif "binary search" in msg_lower or "tree" in msg_lower:
-        response = "A Binary Search Tree is a data structure where each node has at most two children. The left child is always smaller, and the right child is always larger than the parent. Want an example in Python?"
+        response = (
+            "Binary Search Tree basics:\n"
+            "- Left child values are smaller than parent\n"
+            "- Right child values are larger than parent\n"
+            "- Average search time is O(log n)\n\n"
+            "Would you like insertion and search code in Python?"
+        )
     elif "campus" in msg_lower or "attendance" in msg_lower:
-        response = "You can log your attendance completely automatically now using the Face Recognition portal on the Home screen. Ensure you've registered your face profile first!"
+        response = (
+            "Attendance flow:\n"
+            "1) Register face\n"
+            "2) Capture image and call /attendance/mark\n"
+            "3) View daily status from /attendance/today\n\n"
+            "If any step fails, tell me the exact error and I'll debug it with you."
+        )
+    elif "hello" in msg_lower or msg_lower == "hi":
+        response = "Hello! I'm here to help you study. Tell me a topic and your level (beginner/intermediate)."
     else:
-        response = f"That's an interesting question about '{chat.message}'. Currently, I'm analyzing that topic based on your current syllabus modules. Would you like me to find a specific resource?"
+        response = (
+            f"I can help with '{chat.message}'. "
+            "Share your level (beginner/intermediate) and goal (learn basics, solve quiz, or build project), "
+            "and I'll give a personalized step-by-step answer."
+        )
 
     return {"response": response}
 
