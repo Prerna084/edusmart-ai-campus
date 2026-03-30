@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Date, Time, ForeignKey, DateTime, Text, Float
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -18,3 +18,38 @@ class Attendance(Base):
     date = Column(Date)
     time = Column(Time)
     status = Column(String)
+
+# ── Syllabus System ─────────────────────────────────────────────────────────
+
+class Subject(Base):
+    """Top-level course (e.g. 'Data Structures & Algorithms')"""
+    __tablename__ = "subjects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    tag = Column(String, nullable=False)          # e.g. CS301
+    progress = Column(Float, default=0.0)         # 0.0 → 1.0
+    next_module = Column(String, nullable=True)
+
+class SyllabusModule(Base):
+    """A chapter/unit inside a Subject (e.g. 'Module 1: Arrays')"""
+    __tablename__ = "syllabus_modules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    title = Column(String, nullable=False)
+    order_index = Column(Integer, default=0)      # display order
+    is_completed = Column(Integer, default=0)     # 0=false, 1=true
+
+class Topic(Base):
+    """Rich content for a single topic inside a Module"""
+    __tablename__ = "topics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    module_id = Column(Integer, ForeignKey("syllabus_modules.id"), nullable=False)
+    title = Column(String, nullable=False)
+    theory = Column(Text, nullable=True)          # plain text notes
+    video_url = Column(String, nullable=True)     # YouTube link
+    doc_url = Column(String, nullable=True)       # official docs link
+    code_example = Column(Text, nullable=True)    # code snippet
+    practice_task = Column(Text, nullable=True)   # what to build

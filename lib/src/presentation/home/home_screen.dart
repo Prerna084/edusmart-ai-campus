@@ -4,6 +4,8 @@ import '../../core/theme/app_colors.dart';
 import '../widgets/glass_container.dart';
 import '../assessment/assessment_screen.dart';
 import '../attendance/attendance_screen.dart';
+import '../dashboard/attendance_dashboard_screen.dart';
+import '../profile/profile_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   final Function(int)? onTabNavigation;
@@ -12,6 +14,17 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(profileProvider);
+    final name = profileAsync.valueOrNull?.name ?? 'Welcome!';
+    final initials = name
+        .trim()
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    final greeting = _greeting();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -28,21 +41,28 @@ class HomeScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Good Morning,',
+                        greeting,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: AppColors.textSecondary,
                         ),
                       ),
                       Text(
-                        'Alex Student',
+                        name,
                         style: Theme.of(context).textTheme.displaySmall,
                       ),
                     ],
                   ),
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 28,
-                    backgroundColor: AppColors.surface,
-                    child: Icon(Icons.person, size: 32, color: AppColors.primaryStart),
+                    backgroundColor: AppColors.primaryStart.withOpacity(0.1),
+                    child: Text(
+                      initials.isEmpty ? '?' : initials,
+                      style: const TextStyle(
+                        color: AppColors.primaryStart,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -112,6 +132,16 @@ class HomeScreen extends ConsumerWidget {
                       },
                     ),
                   ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.bar_chart,
+                      label: 'Live\nDashboard',
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceDashboardScreen()));
+                      },
+                    ),
+                  ),
                 ],
               ),
               
@@ -160,6 +190,13 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 17) return 'Good Afternoon,';
+    return 'Good Evening,';
   }
 }
 

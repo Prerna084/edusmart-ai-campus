@@ -48,6 +48,8 @@ dependencies:
   flutter_dotenv: ^6.0.0
   image_picker: ^1.2.1
   http: ^1.6.0
+  shared_preferences: ^2.5.5
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

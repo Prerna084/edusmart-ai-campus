@@ -1,8 +1,78 @@
-node_modules/
-build/
-dist/
-coverage/
+# ── General ───────────────────────────────────────────────────────────────────
 .DS_Store
 *.log
-.env*
+Thumbs.db
+
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+.env.*
 !.env.example
+
+# ── Flutter / Dart ────────────────────────────────────────────────────────────
+# Build outputs
+build/
+dist/
+
+# Dart tool cache (regenerated automatically)
+.dart_tool/
+
+# Flutter generated files
+*.g.dart
+*.freezed.dart
+*.gen.dart
+
+# Coverage
+coverage/
+
+# Android generated
+android/.gradle/
+android/local.properties
+android/app/debug.keystore
+**/android/.gradle
+**/gradlew
+**/gradle/
+**/GeneratedPluginRegistrant.java
+
+# iOS generated
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+**/xcuserdata/
+
+# Temp analysis output files
+analyze_out.txt
+analyze_full.txt
+
+# ── Python / FastAPI Backend ───────────────────────────────────────────────────
+# Virtual environment (huge — thousands of files)
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+env/
+
+# Python compiled bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Python distribution / packaging
+*.egg-info/
+dist/
+*.egg
+
+# Database files (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Node (if any tooling) ──────────────────────────────────────────────────────
+node_modules/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
