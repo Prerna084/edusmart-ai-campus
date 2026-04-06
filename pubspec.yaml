@@ -47,6 +47,7 @@ dependencies:
   json_annotation: ^4.11.0
   flutter_dotenv: ^6.0.0
   image_picker: ^1.2.1
+  camera: ^0.11.2+1
   http: ^1.6.0
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.2

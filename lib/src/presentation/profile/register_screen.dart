@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/network/api_base_url.dart';
 import '../../core/theme/app_colors.dart';
@@ -82,10 +83,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(body) as Map<String, dynamic>;
+        final userId = data['user_id'];
+        final alreadyExisted = data['already_existed'] == true;
+
+        if (userId != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('profile_student_id', userId.toString());
+          await prefs.setString('profile_name', data['name']?.toString() ?? nameController.text.trim());
+        }
+
+        final message = alreadyExisted
+            ? 'Already registered as ${data['name']} (ID: ${data['user_id']}). No duplicate created.'
+            : 'Face registered for ${data['name']} (ID: ${data['user_id']}).';
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Face registered for ${data['name']}.'),
-            backgroundColor: AppColors.success,
+            content: Text(message),
+            backgroundColor: alreadyExisted ? AppColors.warning : AppColors.success,
           ),
         );
         Navigator.pop(context);

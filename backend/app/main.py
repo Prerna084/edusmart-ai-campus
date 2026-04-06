@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
-from app.models import Attendance, User, Subject, SyllabusModule, Topic
+from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic
 from app.face_engine import encode_face, find_best_match
 import json
 from datetime import date, datetime
@@ -24,37 +24,148 @@ def get_db():
 
 @app.post("/register/")
 async def register_user(
-    name: str = Form(...), 
-    file: UploadFile = File(...), 
+    name: str = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     """
-    Option A: User Registration API (Upload face from Flutter)
-    Extracts face encoding and saves to database.
+    Registers a new user with their face encoding.
+    Duplicate-safe:
+      - If the uploaded face matches an existing user → returns that user (no new row).
+      - If the name already exists with a different face → updates their encoding (no new row).
+      - Only inserts a new row when the face AND name are both genuinely new.
     """
-    # Extract the face encoding
     encoding = encode_face(file.file)
-    
+
     if encoding is None:
         raise HTTPException(status_code=400, detail="No face found in the provided image.")
-        
-    # Convert numpy array to list, then to JSON string
-    encoding_json = json.dumps(encoding.tolist())
-    
-    # Save user to database
-    new_user = User(name=name, face_encoding=encoding_json)
+
+    # ── 1. Face-duplicate check ───────────────────────────────────────────────
+    existing_users = db.query(User).all()
+    if existing_users:
+        known_encodings = [np.array(json.loads(u.face_encoding)) for u in existing_users]
+        matched = find_best_match(known_encodings, encoding, tolerance=0.5)
+        if matched is not None:
+            match_index, distance = matched
+            existing = existing_users[match_index]
+            return {
+                "message": "Already registered — face matched existing record.",
+                "already_existed": True,
+                "user_id": existing.id,
+                "name": existing.name,
+                "match_distance": round(distance, 4),
+            }
+
+    # ── 2. Name-duplicate check ───────────────────────────────────────────────
+    name_clean = name.strip()
+    existing_by_name = db.query(User).filter(User.name == name_clean).first()
+    if existing_by_name:
+        # Same name, different face → update encoding so they don't get locked out
+        existing_by_name.face_encoding = json.dumps(encoding.tolist())
+        db.commit()
+        db.refresh(existing_by_name)
+        return {
+            "message": "Name already registered — face encoding updated.",
+            "already_existed": True,
+            "user_id": existing_by_name.id,
+            "name": existing_by_name.name,
+        }
+
+    # ── 3. Genuinely new — insert ─────────────────────────────────────────────
+    new_user = User(name=name_clean, face_encoding=json.dumps(encoding.tolist()))
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
     return {
-        "message": "User registered successfully", 
-        "user_id": new_user.id, 
-        "name": new_user.name
+        "message": "User registered successfully",
+        "already_existed": False,
+        "user_id": new_user.id,
+        "name": new_user.name,
+    }
+
+
+@app.post("/admin/deduplicate")
+def deduplicate_students(db: Session = Depends(get_db)):
+    """
+    One-shot cleanup: finds all users with duplicate names, keeps the
+    record with the lowest ID (earliest registration), re-parents any
+    attendance + profile rows to the survivor, then deletes the extras.
+    Returns a report of what was merged.
+    """
+    all_users = db.query(User).order_by(User.id).all()
+
+    # Group by lowercased name
+    from collections import defaultdict
+    name_map: dict = defaultdict(list)
+    for u in all_users:
+        name_map[u.name.strip().lower()].append(u)
+
+    merged = []
+    for name_key, users in name_map.items():
+        if len(users) <= 1:
+            continue  # no duplicate
+
+        # Survivor = lowest ID (oldest record)
+        survivor = users[0]
+        duplicates = users[1:]
+        dup_ids = [d.id for d in duplicates]
+
+        # Re-parent attendance rows — skip if survivor already has that date
+        for dup in duplicates:
+            dup_records = db.query(Attendance).filter(Attendance.user_id == dup.id).all()
+            for rec in dup_records:
+                conflict = (
+                    db.query(Attendance)
+                    .filter(
+                        Attendance.user_id == survivor.id,
+                        Attendance.date == rec.date,
+                    )
+                    .first()
+                )
+                if conflict is None:
+                    rec.user_id = survivor.id
+                else:
+                    db.delete(rec)  # duplicate date — discard
+
+        # Re-parent / discard student_profiles
+        for dup in duplicates:
+            dup_profile = (
+                db.query(StudentProfile).filter(StudentProfile.user_id == dup.id).first()
+            )
+            if dup_profile:
+                survivor_profile = (
+                    db.query(StudentProfile)
+                    .filter(StudentProfile.user_id == survivor.id)
+                    .first()
+                )
+                if survivor_profile is None:
+                    dup_profile.user_id = survivor.id  # migrate
+                else:
+                    db.delete(dup_profile)  # survivor already has one
+
+        db.flush()
+
+        # Delete duplicate user rows
+        for dup in duplicates:
+            db.delete(dup)
+
+        merged.append({
+            "name": survivor.name,
+            "survivor_id": survivor.id,
+            "removed_ids": dup_ids,
+        })
+
+    db.commit()
+
+    return {
+        "message": f"Deduplication complete. {len(merged)} name group(s) merged.",
+        "merged": merged,
     }
 
 
 @app.post("/attendance/mark")
+
 async def mark_attendance(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -119,6 +230,51 @@ async def mark_attendance(
         },
     }
 
+@app.post("/recognize")
+async def recognize_face(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Uploads a face image and identifies the best matching registered user.
+    This endpoint does not mark attendance; it only performs recognition.
+    """
+    unknown_encoding = encode_face(file.file)
+
+    if unknown_encoding is None:
+        raise HTTPException(status_code=400, detail="No face found in the provided image.")
+
+    users = db.query(User).all()
+    if not users:
+        raise HTTPException(status_code=404, detail="No registered users found.")
+
+    known_encodings = [np.array(json.loads(user.face_encoding)) for user in users]
+    matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
+
+    if matched is None:
+        return {
+            "recognized": False,
+            "message": "Unknown face",
+            "user": None,
+            "match_distance": None,
+        }
+
+    match_index, distance = matched
+    user = users[match_index]
+
+    confidence = max(0.0, min(1.0, 1.0 - float(distance)))
+
+    return {
+        "recognized": True,
+        "message": "Face recognized",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+        },
+        "match_distance": float(distance),
+        "confidence": round(confidence, 4),
+    }
+
 
 @app.get("/attendance/today")
 def get_today_attendance(db: Session = Depends(get_db)):
@@ -150,6 +306,51 @@ def get_today_attendance(db: Session = Depends(get_db)):
         }
         for r in results
     ]
+
+
+@app.get("/attendance/{student_id}")
+def get_student_attendance(student_id: int, db: Session = Depends(get_db)):
+    """
+    Returns full attendance history for one student, newest first.
+    Intended for Student Dashboard attendance view.
+    """
+    user = db.query(User).filter(User.id == student_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    records = (
+        db.query(Attendance)
+        .filter(Attendance.user_id == student_id)
+        .order_by(Attendance.date.desc(), Attendance.time.desc())
+        .all()
+    )
+
+    attendance_items = [
+        {
+            "id": r.id,
+            "date": r.date.isoformat() if r.date else None,
+            "time": r.time.strftime("%I:%M %p") if r.time else None,
+            "status": r.status,
+        }
+        for r in records
+    ]
+
+    total_days = len(records)
+    present_days = sum(1 for r in records if (r.status or "").lower() == "present")
+    attendance_percentage = round((present_days / total_days) * 100, 2) if total_days > 0 else 0.0
+
+    return {
+        "student": {
+            "id": user.id,
+            "name": user.name,
+        },
+        "summary": {
+            "total_days": total_days,
+            "present_days": present_days,
+            "attendance_percentage": attendance_percentage,
+        },
+        "attendance": attendance_items,
+    }
 
 # --- AI Tutor Chatbot Simulator ---
 class ChatMessage(BaseModel):
@@ -269,6 +470,100 @@ async def ask_tutor(chat: ChatMessage):
         )
 
     return {"response": response}
+
+# ── Students API ─────────────────────────────────────────────────────────────
+
+class StudentProfileSchema(BaseModel):
+    email: str = ""
+    phone: str = ""
+    department: str = ""
+    year: str = ""
+
+@app.get("/students")
+def get_all_students(db: Session = Depends(get_db)):
+    """
+    Returns all registered students with their attendance count.
+    Used by the Admin Dashboard — Student List screen.
+    """
+    users = db.query(User).order_by(User.id).all()
+    result = []
+    for user in users:
+        total_attendance = (
+            db.query(Attendance)
+            .filter(Attendance.user_id == user.id)
+            .count()
+        )
+        result.append({
+            "id": user.id,
+            "name": user.name,
+            "registered_at": user.updated_at.isoformat() if user.updated_at else None,
+            "total_attendance": total_attendance,
+        })
+    return result
+
+
+@app.get("/students/{student_id}/profile")
+def get_student_profile(student_id: int, db: Session = Depends(get_db)):
+    """
+    Returns the extended profile (email, phone, dept, year) for a student.
+    Flutter profile screen calls this after a user logs in / registers.
+    """
+    user = db.query(User).filter(User.id == student_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Student not found")
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": profile.email if profile else "",
+        "phone": profile.phone if profile else "",
+        "department": profile.department if profile else "",
+        "year": profile.year if profile else "",
+    }
+
+
+@app.put("/students/{student_id}/profile")
+def update_student_profile(
+    student_id: int,
+    data: StudentProfileSchema,
+    db: Session = Depends(get_db)
+):
+    """
+    Creates or updates the extended profile for a student.
+    Flutter 'Edit Profile' sheet calls this on save.
+    """
+    user = db.query(User).filter(User.id == student_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
+    if profile is None:
+        profile = StudentProfile(user_id=student_id)
+        db.add(profile)
+
+    profile.email = data.email
+    profile.phone = data.phone
+    profile.department = data.department
+    profile.year = data.year
+    db.commit()
+    db.refresh(profile)
+    return {"message": "Profile updated", "student_id": student_id}
+
+
+@app.delete("/students/{student_id}")
+def delete_student(student_id: int, db: Session = Depends(get_db)):
+    """
+    Deletes a registered student and all their attendance records.
+    Admin-only action.
+    """
+    user = db.query(User).filter(User.id == student_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Student not found")
+    db.query(Attendance).filter(Attendance.user_id == student_id).delete()
+    db.delete(user)
+    db.commit()
+    return {"message": f"Student '{user.name}' deleted successfully"}
+
 
 # ── Syllabus API ─────────────────────────────────────────────────────────────
 

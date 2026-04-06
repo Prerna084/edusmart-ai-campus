@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../attendance/student_attendance_screen.dart';
 import '../widgets/glass_container.dart';
 import 'profile_provider.dart';
 import 'register_screen.dart';
@@ -225,6 +226,16 @@ class _ProfileView extends ConsumerWidget {
                               context,
                               MaterialPageRoute(
                                   builder: (_) => const RegisterScreen()),
+                            ),
+                          ),
+                          const Divider(height: 1, color: AppColors.glassBorder),
+                          _ActionTile(
+                            icon: Icons.fact_check_outlined,
+                            label: 'My Attendance',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const StudentAttendanceScreen()),
                             ),
                           ),
                           const Divider(height: 1, color: AppColors.glassBorder),

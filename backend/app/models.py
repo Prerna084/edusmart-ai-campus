@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, ForeignKey, DateTime, Text, Float
+from sqlalchemy import Column, Integer, String, Date, Time, ForeignKey, DateTime, Text, Float, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -12,12 +12,28 @@ class User(Base):
 
 class Attendance(Base):
     __tablename__ = "attendance"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_attendance_user_date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     date = Column(Date)
     time = Column(Time)
     status = Column(String)
+
+
+class StudentProfile(Base):
+    """Extended profile info for a registered student."""
+    __tablename__ = "student_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    year = Column(String, nullable=True)
+
 
 # ── Syllabus System ─────────────────────────────────────────────────────────
 

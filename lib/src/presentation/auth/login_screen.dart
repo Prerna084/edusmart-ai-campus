@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
+import 'admin_login_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../home/home_screen.dart';
 import '../syllabus/syllabus_screen.dart';
@@ -69,8 +70,20 @@ class LoginScreen extends StatelessWidget {
                           MaterialPageRoute(builder: (context) => const MainScreen()),
                         );
                       },
-                      child: const Text('Login'),
+                      child: const Text('Student Login'),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AdminLoginScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Administrator login'),
                   ),
                 ],
               ),

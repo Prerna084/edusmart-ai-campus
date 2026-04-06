@@ -74,6 +74,36 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "camera",
+      "rootUri": "file:///C:/Users/shres/AppData/Local/Pub/Cache/hosted/pub.dev/camera-0.11.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "camera_android_camerax",
+      "rootUri": "file:///C:/Users/shres/AppData/Local/Pub/Cache/hosted/pub.dev/camera_android_camerax-0.6.30",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "camera_avfoundation",
+      "rootUri": "file:///C:/Users/shres/AppData/Local/Pub/Cache/hosted/pub.dev/camera_avfoundation-0.9.23+2",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "camera_platform_interface",
+      "rootUri": "file:///C:/Users/shres/AppData/Local/Pub/Cache/hosted/pub.dev/camera_platform_interface-2.12.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "camera_web",
+      "rootUri": "file:///C:/Users/shres/AppData/Local/Pub/Cache/hosted/pub.dev/camera_web-0.3.5+3",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
       "name": "characters",
       "rootUri": "file:///C:/Users/shres/AppData/Local/Pub/Cache/hosted/pub.dev/characters-1.4.0",
       "packageUri": "lib/",

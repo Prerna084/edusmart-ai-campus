@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,33 +23,376 @@ final todayAttendanceProvider =
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
-class AttendanceDashboardScreen extends ConsumerWidget {
-  const AttendanceDashboardScreen({super.key});
+class AttendanceDashboardScreen extends ConsumerStatefulWidget {
+  /// When true, shows admin title and optional logout (e.g. after admin login).
+  final bool isAdminMode;
+  final VoidCallback? onAdminLogout;
+
+  const AttendanceDashboardScreen({
+    super.key,
+    this.isAdminMode = false,
+    this.onAdminLogout,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AttendanceDashboardScreen> createState() =>
+      _AttendanceDashboardScreenState();
+}
+
+class _AttendanceDashboardScreenState
+    extends ConsumerState<AttendanceDashboardScreen> {
+  CameraController? _cameraController;
+  bool _cameraReady = false;
+  String? _cameraError;
+  Timer? _scanTimer;
+  bool _isAutoScanning = false;
+  bool _isScanInProgress = false;
+  String _scanStatus = 'Idle';
+  final Set<int> _sessionMarkedStudentIds = <int>{};
+  final List<String> _recentDetections = <String>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _stopAutoScan();
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        setState(() {
+          _cameraError = 'No camera available on this device.';
+        });
+        return;
+      }
+      final selected = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+      final controller = CameraController(
+        selected,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _cameraController = controller;
+        _cameraReady = true;
+        _cameraError = null;
+        _scanStatus = 'Camera ready';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cameraError = 'Camera init failed: $e';
+        _scanStatus = 'Camera unavailable';
+      });
+    }
+  }
+
+  Future<void> _runSingleScanCycle() async {
+    if (_isScanInProgress || !_isAutoScanning) return;
+    if (!_cameraReady || _cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+    _isScanInProgress = true;
+
+    try {
+      if (mounted) {
+        setState(() {
+          _scanStatus = 'Capturing frame...';
+        });
+      }
+
+      final image = await _cameraController!.takePicture();
+      final imagePath = image.path;
+      final imageName = image.name;
+
+      final dio = ref.read(dioProvider);
+
+      if (mounted) {
+        setState(() {
+          _scanStatus = 'Recognizing face...';
+        });
+      }
+
+      final recognizeResponse = await dio.post<Map<String, dynamic>>(
+        '/recognize',
+        data: FormData.fromMap({
+          'file': await MultipartFile.fromFile(imagePath, filename: imageName),
+        }),
+      );
+
+      final recognitionData = recognizeResponse.data ?? <String, dynamic>{};
+      final recognized = recognitionData['recognized'] == true;
+
+      if (!recognized) {
+        if (mounted) {
+          setState(() {
+            _scanStatus = 'Unknown face';
+            _recentDetections.insert(0, 'Unknown face detected');
+            if (_recentDetections.length > 6) _recentDetections.removeLast();
+          });
+        }
+        return;
+      }
+
+      final user = recognitionData['user'] as Map<String, dynamic>?;
+      final dynamic rawUserId = user?['id'];
+      final int? userId = rawUserId is int
+          ? rawUserId
+          : int.tryParse(rawUserId?.toString() ?? '');
+      final userName = user?['name']?.toString() ?? 'Unknown';
+
+      if (userId == null) {
+        if (mounted) {
+          setState(() {
+            _scanStatus = 'Recognition payload invalid';
+          });
+        }
+        return;
+      }
+
+      if (_sessionMarkedStudentIds.contains(userId)) {
+        if (mounted) {
+          setState(() {
+            _scanStatus = 'Already marked recently: $userName';
+            _recentDetections.insert(0, '$userName recognized (already marked)');
+            if (_recentDetections.length > 6) _recentDetections.removeLast();
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _scanStatus = 'Marking attendance for $userName...';
+        });
+      }
+
+      final markResponse = await dio.post<Map<String, dynamic>>(
+        '/attendance/mark',
+        data: FormData.fromMap({
+          'file': await MultipartFile.fromFile(imagePath, filename: imageName),
+        }),
+      );
+
+      final markData = markResponse.data ?? <String, dynamic>{};
+      final attendanceMarked = markData['attendance_marked'] == true;
+
+      if (mounted) {
+        setState(() {
+          if (attendanceMarked) {
+            _sessionMarkedStudentIds.add(userId);
+            _scanStatus = 'Attendance marked: $userName';
+            _recentDetections.insert(0, 'Marked: $userName');
+          } else {
+            _sessionMarkedStudentIds.add(userId);
+            _scanStatus = 'Already marked today: $userName';
+            _recentDetections.insert(0, 'Already marked today: $userName');
+          }
+          if (_recentDetections.length > 6) _recentDetections.removeLast();
+        });
+      }
+
+      ref.invalidate(todayAttendanceProvider);
+      unawaited(File(imagePath).delete().catchError((_) => File(imagePath)));
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _scanStatus = 'Scan error: $e';
+        });
+      }
+    } finally {
+      _isScanInProgress = false;
+    }
+  }
+
+  void _startAutoScan() {
+    if (_isAutoScanning || !_cameraReady) return;
+    setState(() {
+      _isAutoScanning = true;
+      _scanStatus = 'Auto scan started';
+    });
+    _scanTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _runSingleScanCycle();
+    });
+    _runSingleScanCycle();
+  }
+
+  void _stopAutoScan() {
+    _scanTimer?.cancel();
+    _scanTimer = null;
+    if (mounted) {
+      setState(() {
+        _isAutoScanning = false;
+        _scanStatus = 'Auto scan stopped';
+      });
+    } else {
+      _isAutoScanning = false;
+    }
+  }
+
+  Future<void> _manualSingleScan() async {
+    if (_isAutoScanning || !_cameraReady) return;
+    setState(() {
+      _isAutoScanning = true;
+    });
+    await _runSingleScanCycle();
+    if (mounted) {
+      setState(() {
+        _isAutoScanning = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final attendanceAsync = ref.watch(todayAttendanceProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Live Attendance'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => ref.invalidate(todayAttendanceProvider),
-          ),
-        ],
-      ),
+      appBar: widget.isAdminMode
+          ? null // parent AdminMainScreen already has an AppBar + TabBar
+          : AppBar(
+              title: const Text('Live Attendance'),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh',
+                  onPressed: () => ref.invalidate(todayAttendanceProvider),
+                ),
+              ],
+            ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              GlassContainer(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.videocam, color: AppColors.primaryStart),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Admin Auto Scan',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        Switch(
+                          value: _isAutoScanning,
+                          onChanged: (enabled) {
+                            if (enabled) {
+                              _startAutoScan();
+                            } else {
+                              _stopAutoScan();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _scanStatus,
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: (_isAutoScanning || !_cameraReady) ? null : _manualSingleScan,
+                            icon: const Icon(Icons.camera_alt),
+                            label: const Text('Scan Once'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _recentDetections.clear();
+                                _sessionMarkedStudentIds.clear();
+                              });
+                            },
+                            icon: const Icon(Icons.clear_all),
+                            label: const Text('Clear Session'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        color: Colors.black,
+                        height: 180,
+                        width: double.infinity,
+                        child: _cameraError != null
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Text(
+                                    _cameraError!,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.white70),
+                                  ),
+                                ),
+                              )
+                            : !_cameraReady || _cameraController == null
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColors.primaryStart,
+                                    ),
+                                  )
+                                : CameraPreview(_cameraController!),
+                      ),
+                    ),
+                    if (_recentDetections.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Recent detections',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 6),
+                      ..._recentDetections.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '- $entry',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               // ── Header ──────────────────────────────────────────────────
               Text(
                 "Today's Check-ins",
