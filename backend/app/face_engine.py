@@ -7,16 +7,25 @@ from typing import Any
 
 import numpy as np
 from PIL import Image
+import warnings
+import sys
 
-# try:
-#     import face_recognition
+# Face recognition is optional - requires face_recognition package + models
+# To enable: pip install face_recognition git+https://github.com/ageitgey/face_recognition_models
+# Then set ENABLE_FACE_RECOGNITION=1 environment variable
 
-#     _HAS_FR = True
-# except ImportError:
-#     _HAS_FR = False
-
-# Temporarily disable face recognition due to import warning
 _HAS_FR = False
+
+try:
+    # Suppress the face_recognition_models installation warning
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        import face_recognition
+        _HAS_FR = True
+except (ImportError, RuntimeError) as e:
+    # If face_recognition or models not installed, that's okay
+    # The endpoints will return 503 Service Unavailable
+    _HAS_FR = False
 
 
 def face_available() -> bool:

@@ -1,0 +1,1 @@
+ /Volumes/Devlopment/MajorProject/project/edusmart-ai-campus/.dart_tool/flutter_build/a8f4965c699c33a9f98bc940f9b31264/native_assets.json: 
