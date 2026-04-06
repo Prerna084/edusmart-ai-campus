@@ -41,7 +41,7 @@ class QuestionModel extends Question {
   QuestionModel({
     required super.id,
     required super.text,
-    required List<String> super.options,
+    required super.options,
     required super.correctOptionIndex,
     super.explanation,
   });
