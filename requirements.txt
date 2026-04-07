@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-multipart
+face_recognition
+dlib
+cmake
+opencv-python
+numpy
