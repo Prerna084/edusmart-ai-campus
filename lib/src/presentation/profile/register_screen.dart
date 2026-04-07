@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,12 +63,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      // ✅ Compress before upload — caps at 800px, quality 70
+      // Shrinks a 5 MB phone photo to ~150 KB, preventing OOM on the server.
+      final Uint8List? compressed = await FlutterImageCompress.compressWithFile(
+        _image!.path,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 70,
+        format: CompressFormat.jpeg,
+      );
+
+      final File uploadFile;
+      if (compressed != null) {
+        final tmpDir = await getTemporaryDirectory();
+        final tmpPath = p.join(tmpDir.path, 'face_upload.jpg');
+        uploadFile = await File(tmpPath).writeAsBytes(compressed);
+      } else {
+        uploadFile = _image!; // fallback: send original
+      }
+
       final dio = Dio();
       final formData = FormData.fromMap({
         'name': nameController.text.trim(),
         'file': await MultipartFile.fromFile(
-          _image!.path,
-          filename: 'face.jpg', // Force filename to ensure backend parses it properly
+          uploadFile.path,
+          filename: 'face.jpg',
         ),
       });
 
@@ -72,9 +95,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         '$_apiBaseUrl/register/',
         data: formData,
         options: Options(
-          headers: {
-            'Accept': 'application/json',
-          },
+          headers: {'Accept': 'application/json'},
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
         ),
       );
 
