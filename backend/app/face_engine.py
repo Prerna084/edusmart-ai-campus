@@ -21,7 +21,22 @@ def encode_face(image_file):
 
     # Use OpenCV Haar Cascades for face detection
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.05,   # finer scale steps → catches more faces
+        minNeighbors=3,     # less strict → fewer false negatives on mobile photos
+        minSize=(20, 20),   # smaller min size → catches farther/smaller faces
+    )
+
+    # Second-pass fallback: try profile/side-face cascade if frontal fails
+    if len(faces) == 0:
+        profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
+        faces = profile_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.05,
+            minNeighbors=3,
+            minSize=(20, 20),
+        )
 
     if len(faces) == 0:
         return None
