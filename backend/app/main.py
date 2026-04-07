@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
@@ -13,7 +14,34 @@ from fastapi.middleware.cors import CORSMiddleware
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Campus AI Academy - CCTV Attendance API")
+
+def _auto_seed_syllabus():
+    """Seed syllabus data if the subjects table is empty."""
+    db = SessionLocal()
+    try:
+        count = db.query(Subject).count()
+        if count == 0:
+            print("📚 No syllabus data found — auto-seeding…")
+            from app.syllabus_seed import seed
+            seed()
+            print("✅ Syllabus auto-seed complete.")
+        else:
+            print(f"📚 Syllabus already has {count} subject(s), skipping seed.")
+    except Exception as e:
+        print(f"⚠️ Auto-seed failed (non-fatal): {e}")
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup ──
+    _auto_seed_syllabus()
+    yield
+    # ── Shutdown ──
+
+
+app = FastAPI(title="Campus AI Academy - CCTV Attendance API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

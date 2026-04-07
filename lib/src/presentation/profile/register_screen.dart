@@ -6,21 +6,23 @@ import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/network/api_base_url.dart';
 import '../../core/theme/app_colors.dart';
 import '../widgets/glass_container.dart';
+import 'profile_provider.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   File? _image;
   final picker = ImagePicker();
   final nameController = TextEditingController();
@@ -117,6 +119,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('profile_student_id', userId.toString());
         await prefs.setString('profile_name', data['name']?.toString() ?? nameController.text.trim());
+        // Refresh so Profile tab picks up the new ID + name immediately
+        ref.invalidate(profileProvider);
       }
 
       final message = alreadyExisted
