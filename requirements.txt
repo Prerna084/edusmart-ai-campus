@@ -3,7 +3,5 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 python-multipart
-face_recognition
-dlib-bin
 opencv-python
 numpy==1.26.4
