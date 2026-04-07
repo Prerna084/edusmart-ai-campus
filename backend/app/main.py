@@ -44,10 +44,17 @@ async def register_user(
       - If the name already exists with a different face → updates their encoding (no new row).
       - Only inserts a new row when the face AND name are both genuinely new.
     """
-    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+    # Reject default Swagger 'string' name
+    if name.strip().lower() == "string":
         raise HTTPException(
             status_code=400,
-            detail="Invalid image format. Only JPG, JPEG, and PNG are supported.",
+            detail="Please provide a real name, not 'string'.",
+        )
+
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image format. Expected an image, got {file.content_type}",
         )
 
     encoding = encode_face(file.file)
@@ -196,10 +203,10 @@ async def mark_attendance(
     Uploads a face image, matches it against registered users, and marks
     attendance once per day.
     """
-    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+    if not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=400,
-            detail="Invalid image format. Only JPG, JPEG, and PNG are supported.",
+            detail=f"Invalid image format. Expected an image, got {file.content_type}",
         )
 
     unknown_encoding = encode_face(file.file)
@@ -274,10 +281,10 @@ async def recognize_face(
     Uploads a face image and identifies the best matching registered user.
     This endpoint does not mark attendance; it only performs recognition.
     """
-    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+    if not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=400,
-            detail="Invalid image format. Only JPG, JPEG, and PNG are supported.",
+            detail=f"Invalid image format. Expected an image, got {file.content_type}",
         )
 
     unknown_encoding = encode_face(file.file)
