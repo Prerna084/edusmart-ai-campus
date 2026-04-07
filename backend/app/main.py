@@ -51,11 +51,7 @@ async def register_user(
             detail="Please provide a real name, not 'string'.",
         )
 
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid image format. Expected an image, got {file.content_type}",
-        )
+
 
     encoding = encode_face(file.file)
 
@@ -203,11 +199,7 @@ async def mark_attendance(
     Uploads a face image, matches it against registered users, and marks
     attendance once per day.
     """
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid image format. Expected an image, got {file.content_type}",
-        )
+
 
     unknown_encoding = encode_face(file.file)
 
@@ -281,11 +273,7 @@ async def recognize_face(
     Uploads a face image and identifies the best matching registered user.
     This endpoint does not mark attendance; it only performs recognition.
     """
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid image format. Expected an image, got {file.content_type}",
-        )
+
 
     unknown_encoding = encode_face(file.file)
 
