@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -60,18 +59,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$_apiBaseUrl/register/'),
+      final dio = Dio();
+      final formData = FormData.fromMap({
+        'name': nameController.text.trim(),
+        'file': await MultipartFile.fromFile(
+          _image!.path,
+          filename: 'face.jpg', // Force filename to ensure backend parses it properly
+        ),
+      });
+
+      final response = await dio.post(
+        '$_apiBaseUrl/register/',
+        data: formData,
+        options: Options(
+          headers: {
+            'Accept': 'application/json',
+          },
+        ),
       );
 
-      request.fields['name'] = nameController.text.trim();
-      request.files.add(
-        await http.MultipartFile.fromPath('file', _image!.path),
-      );
-
-      final response = await request.send();
-      final body = await response.stream.bytesToString();
+      final data = response.data;
+      final userId = data['user_id'];
+      final alreadyExisted = data['already_existed'] == true;
 
       if (!mounted) {
         return;
@@ -81,39 +90,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _isLoading = false;
       });
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(body) as Map<String, dynamic>;
-        final userId = data['user_id'];
-        final alreadyExisted = data['already_existed'] == true;
-
-        if (userId != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('profile_student_id', userId.toString());
-          await prefs.setString('profile_name', data['name']?.toString() ?? nameController.text.trim());
-        }
-
-        final message = alreadyExisted
-            ? 'Already registered as ${data['name']} (ID: ${data['user_id']}). No duplicate created.'
-            : 'Face registered for ${data['name']} (ID: ${data['user_id']}).';
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: alreadyExisted ? AppColors.warning : AppColors.success,
-          ),
-        );
-        Navigator.pop(context);
-      } else {
-        final message = body.contains('No face found')
-            ? 'No face found. Retake the photo with your full face centered, good light, and if possible without glasses.'
-            : 'Registration failed: $body';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.error,
-          ),
-        );
+      if (userId != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('profile_student_id', userId.toString());
+        await prefs.setString('profile_name', data['name']?.toString() ?? nameController.text.trim());
       }
+
+      final message = alreadyExisted
+          ? 'Already registered as ${data['name']} (ID: ${data['user_id']}). No duplicate created.'
+          : 'Face registered for ${data['name']} (ID: ${data['user_id']}).';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: alreadyExisted ? AppColors.warning : AppColors.success,
+        ),
+      );
+      Navigator.pop(context);
+      
+    } on DioException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+      
+      final responseData = error.response?.data;
+      String errorMessage = 'Unknown error';
+      if (responseData is Map<String, dynamic> && responseData.containsKey('detail')) {
+        errorMessage = responseData['detail'].toString();
+      } else if (responseData != null) {
+        errorMessage = responseData.toString();
+      }
+
+      final message = errorMessage.contains('No face found')
+          ? 'No face found. Retake the photo with your full face centered, good light, and if possible without glasses.'
+          : 'Registration failed: $errorMessage';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;

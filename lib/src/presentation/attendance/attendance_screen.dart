@@ -81,7 +81,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         data: FormData.fromMap({
           'file': await MultipartFile.fromFile(
             image.path,
-            filename: image.name,
+            filename: 'face.jpg',
           ),
         }),
       );
