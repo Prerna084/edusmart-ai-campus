@@ -4,7 +4,6 @@ sqlalchemy
 psycopg2-binary
 python-multipart
 face_recognition
-dlib
-cmake
+dlib-bin
 opencv-python
 numpy==1.26.4
