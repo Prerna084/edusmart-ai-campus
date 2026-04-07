@@ -11,50 +11,58 @@ class AssessmentRemoteDatasource {
 
   Future<AssessmentModel> generateAssessment(String topic) async {
     if (apiKey.isEmpty) {
+      // No key configured — use local mock quiz
       await Future.delayed(const Duration(seconds: 2));
       final Map<String, dynamic> mockData = _buildMockAssessment(topic);
       return AssessmentModel.fromJson(mockData);
     }
 
-    final model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(
-        responseMimeType: 'application/json',
-      ),
-    );
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-1.5-flash',
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(
+          responseMimeType: 'application/json',
+        ),
+      );
 
-    final prompt = '''
-    Generate a 5-question multiple choice assessment on the topic: $topic.
-    Return a JSON object with the following structure:
-    {
-      "id": "unique_id",
-      "title": "Assessment Title",
-      "description": "Short description",
-      "createdAt": "ISO8601 string",
-      "questions": [
-        {
-          "id": "q1",
-          "text": "Question text",
-          "options": ["Option A", "Option B", "Option C", "Option D"],
-          "correctOptionIndex": 0,
-          "explanation": "Why this is correct"
-        }
-      ]
+      final prompt = '''
+      Generate a 5-question multiple choice assessment on the topic: $topic.
+      Return a JSON object with the following structure:
+      {
+        "id": "unique_id",
+        "title": "Assessment Title",
+        "description": "Short description",
+        "createdAt": "ISO8601 string",
+        "questions": [
+          {
+            "id": "q1",
+            "text": "Question text",
+            "options": ["Option A", "Option B", "Option C", "Option D"],
+            "correctOptionIndex": 0,
+            "explanation": "Why this is correct"
+          }
+        ]
+      }
+      ''';
+
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      
+      if (response.text == null) {
+        throw Exception('Failed to generate assessment');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.text!);
+      // Ensure createdAt is present
+      data['createdAt'] = DateTime.now().toIso8601String();
+      return AssessmentModel.fromJson(data);
+    } catch (_) {
+      // Gemini call failed (invalid key, quota, network) — fall back to mock
+      await Future.delayed(const Duration(seconds: 1));
+      final Map<String, dynamic> mockData = _buildMockAssessment(topic);
+      return AssessmentModel.fromJson(mockData);
     }
-    ''';
-
-    final content = [Content.text(prompt)];
-    final response = await model.generateContent(content);
-    
-    if (response.text == null) {
-      throw Exception('Failed to generate assessment');
-    }
-
-    final Map<String, dynamic> data = jsonDecode(response.text!);
-    // Ensure createdAt is present
-    data['createdAt'] = DateTime.now().toIso8601String();
-    return AssessmentModel.fromJson(data);
   }
 
   Map<String, dynamic> _buildMockAssessment(String topic) {

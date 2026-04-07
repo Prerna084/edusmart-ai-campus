@@ -8,9 +8,12 @@ import '../../data/assessment/assessment_repository_impl.dart';
 // Providers
 final assessmentRemoteDatasourceProvider = Provider((ref) {
   const dartDefineKey = String.fromEnvironment('GEMINI_API_KEY');
-  final dotenvKey = dotenv.env['GEMINI_API_KEY'];
+  final dotenvKey = dotenv.env['GEMINI_API_KEY']?.trim() ?? '';
   
-  final apiKey = dartDefineKey.isNotEmpty ? dartDefineKey : (dotenvKey ?? '');
+  // Use dart-define key first, then .env key — but only if non-blank
+  final apiKey = dartDefineKey.trim().isNotEmpty
+      ? dartDefineKey.trim()
+      : dotenvKey.isNotEmpty ? dotenvKey : '';
   
   return AssessmentRemoteDatasource(apiKey: apiKey);
 });
