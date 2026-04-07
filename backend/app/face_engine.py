@@ -6,12 +6,22 @@ import PIL.ImageOps
 import cv2
 
 def encode_face(image_file):
+    # Reset file pointer to start (important for SpooledTemporaryFile)
+    try:
+        image_file.seek(0)
+    except Exception:
+        pass
+
     # Load image using PIL to handle EXIF rotation from mobile cameras
-    pil_img = PIL.Image.open(image_file)
-    # Fix orientation if EXIF tag exists (prevents sideways faces failing detection)
-    pil_img = PIL.ImageOps.exif_transpose(pil_img)
-    pil_img = pil_img.convert("RGB")
-    
+    try:
+        pil_img = PIL.Image.open(image_file)
+        # Fix orientation if EXIF tag exists (prevents sideways faces failing detection)
+        pil_img = PIL.ImageOps.exif_transpose(pil_img)
+        pil_img = pil_img.convert("RGB")
+    except Exception:
+        # File is not a valid image (e.g. a .db file, text file, etc.)
+        return None
+
     # Convert to numpy array for face_recognition
     image_np = np.array(pil_img)
 

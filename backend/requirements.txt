@@ -6,3 +6,5 @@ numpy
 sqlalchemy
 psycopg2-binary
 python-multipart
+cmake
+dlib

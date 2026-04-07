@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 const _androidEmulatorBaseUrl = 'http://10.0.2.2:8000';
-const _defaultLocalBaseUrl = 'http://192.168.29.170:8000'; // ✅ your laptop IP
+const _defaultLocalBaseUrl = 'https://your-app.onrender.com'; // ✅ Connect to Render Backend
 
 const _loopbackHosts = {'127.0.0.1', 'localhost'};
 

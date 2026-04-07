@@ -8,11 +8,20 @@ from datetime import date, datetime
 import numpy as np
 from pydantic import BaseModel
 import asyncio
+from fastapi.middleware.cors import CORSMiddleware
 
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Campus AI Academy - CCTV Attendance API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_db():
     db = SessionLocal()
@@ -35,10 +44,23 @@ async def register_user(
       - If the name already exists with a different face → updates their encoding (no new row).
       - Only inserts a new row when the face AND name are both genuinely new.
     """
+    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Only JPG, JPEG, and PNG are supported.",
+        )
+
     encoding = encode_face(file.file)
 
     if encoding is None:
-        raise HTTPException(status_code=400, detail="No face found in the provided image.")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not process the uploaded file or no face found. "
+                "Please upload a clear face photo (JPEG or PNG). "
+                f"Received filename: '{file.filename}', content-type: '{file.content_type}'."
+            ),
+        )
 
     # ── 1. Face-duplicate check ───────────────────────────────────────────────
     existing_users = db.query(User).all()
@@ -174,10 +196,23 @@ async def mark_attendance(
     Uploads a face image, matches it against registered users, and marks
     attendance once per day.
     """
+    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Only JPG, JPEG, and PNG are supported.",
+        )
+
     unknown_encoding = encode_face(file.file)
 
     if unknown_encoding is None:
-        raise HTTPException(status_code=400, detail="No face found in the provided image.")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not process the uploaded file or no face found. "
+                "Please upload a clear face photo (JPEG or PNG). "
+                f"Received filename: '{file.filename}', content-type: '{file.content_type}'."
+            ),
+        )
 
     users = db.query(User).all()
     if not users:
@@ -239,10 +274,23 @@ async def recognize_face(
     Uploads a face image and identifies the best matching registered user.
     This endpoint does not mark attendance; it only performs recognition.
     """
+    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Only JPG, JPEG, and PNG are supported.",
+        )
+
     unknown_encoding = encode_face(file.file)
 
     if unknown_encoding is None:
-        raise HTTPException(status_code=400, detail="No face found in the provided image.")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not process the uploaded file or no face found. "
+                "Please upload a clear face photo (JPEG or PNG). "
+                f"Received filename: '{file.filename}', content-type: '{file.content_type}'."
+            ),
+        )
 
     users = db.query(User).all()
     if not users:
@@ -624,3 +672,10 @@ def get_topic(topic_id: int, db: Session = Depends(get_db)):
         "code_example": topic.code_example,
         "practice_task": topic.practice_task,
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    # Make sure to run it matching your module structure or directory.
+    # Uvicorn looks for app/main.py if you run from the root.
+    uvicorn.run("app.main:app", host="0.0.0.0", port=10000)

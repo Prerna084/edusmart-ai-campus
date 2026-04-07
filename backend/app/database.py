@@ -9,7 +9,10 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:password@localhost/attendance_db"
 )
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"sslmode": "require"} if "onrender.com" in DATABASE_URL or "neon.tech" in DATABASE_URL else {}
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
