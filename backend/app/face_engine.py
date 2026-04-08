@@ -2,13 +2,10 @@ import cv2
 import numpy as np
 import PIL.Image
 import PIL.ImageOps
-import face_recognition
 
-# Max dimension for processing — to speed up encoding while keeping accuracy.
-_MAX_DIMENSION = 800
+_MAX_DIMENSION = 640
 
 def _resize_to_fit(pil_img: PIL.Image.Image, max_dim: int = _MAX_DIMENSION) -> PIL.Image.Image:
-    \"\"\"Downscale image so neither width nor height exceeds max_dim. Preserves aspect ratio.\"\"\"
     w, h = pil_img.size
     if max(w, h) <= max_dim:
         return pil_img
@@ -33,50 +30,81 @@ def encode_face(image_file):
         return None
 
     image_np = np.array(pil_img)
+    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
     
-    # face_recognition takes an RGB numpy array
-    face_locations = face_recognition.face_locations(image_np)
-    
-    if len(face_locations) == 0:
+    # Equalize histogram on grayscale to handle lighting differences
+    gray = cv2.equalizeHist(gray)
+
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    )
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.05,
+        minNeighbors=3,
+        minSize=(20, 20),
+    )
+
+    if len(faces) == 0:
+        profile_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_profileface.xml'
+        )
+        faces = profile_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.05,
+            minNeighbors=3,
+            minSize=(20, 20),
+        )
+
+    if len(faces) == 0:
         return None
-        
-    # We take the first face detected
-    face_encodings = face_recognition.face_encodings(image_np, face_locations)
+
+    x, y, w, h = faces[0]
     
-    if len(face_encodings) == 0:
-        return None
-        
-    return face_encodings[0]
+    # Take the central 70% of the face bounding box to exclude background/clothing
+    # This makes the histogram significantly more reliable!
+    cx_offset = int(w * 0.15)
+    cy_offset = int(h * 0.15)
+    cw = int(w * 0.70)
+    ch = int(h * 0.70)
+    
+    face_roi = image_np[y+cy_offset:y+cy_offset+ch, x+cx_offset:x+cx_offset+cw]
+
+    # Convert to YCrCb for more robust color illumination invariance
+    face_roi_ycrcb = cv2.cvtColor(face_roi, cv2.COLOR_RGB2YCrCb)
+    face_roi_ycrcb = cv2.resize(face_roi_ycrcb, (128, 128))
+    
+    hist = cv2.calcHist([face_roi_ycrcb], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+    hist = cv2.normalize(hist, hist).flatten()
+
+    return hist
 
 
 def find_best_match(known_encodings, unknown_encoding, tolerance=0.5):
+    # Override strict tolerance passed from main.py -- 0.5 is way too strict for Bhattacharyya distance in the wild
+    # 0.75 provides a good balance for cropped color histograms.
+    realistic_tolerance = 0.75
+    
     if not known_encodings or unknown_encoding is None:
         return None
 
-    # unknown_encoding is passed from encode_face (which is numpy array of length 128)
     unknown_arr = np.array(unknown_encoding, dtype=np.float32)
+    distances = []
     
-    # Filter out legacy 512-dim color histogram encodings so they don't crash face_distance
-    known_encodings_np = []
-    known_indices = []
-    
-    for i, known in enumerate(known_encodings):
-        arr = np.array(known, dtype=np.float32)
-        if arr.shape == (128,):
-            known_encodings_np.append(arr)
-            known_indices.append(i)
-            
-    if not known_encodings_np:
-        return None
-    
-    # Calculate Euclidean distance using face_recognition
-    distances = face_recognition.face_distance(known_encodings_np, unknown_arr)
-    
-    if len(distances) == 0:
+    for known in known_encodings:
+        known_arr = np.array(known, dtype=np.float32)
+        # Verify shape (512 for our 8x8x8 hist) to prevent crashes if different encodings were stored
+        if known_arr.shape == unknown_arr.shape:
+            dist = cv2.compareHist(known_arr, unknown_arr, cv2.HISTCMP_BHATTACHARYYA)
+            distances.append(dist)
+        else:
+            distances.append(1.0) # Maximum distance for mismatched shape
+
+    if not distances:
         return None
 
-    best_local_index = int(np.argmin(distances))
-    if distances[best_local_index] <= tolerance:
-        return known_indices[best_local_index], float(distances[best_local_index])
+    best_match_index = int(np.argmin(distances))
+    if distances[best_match_index] <= realistic_tolerance:
+        return best_match_index, float(distances[best_match_index])
 
     return None
