@@ -345,28 +345,30 @@ class _AttendanceDashboardScreenState
                     const SizedBox(height: 10),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        color: Colors.black,
-                        height: 180,
-                        width: double.infinity,
-                        child: _cameraError != null
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Text(
-                                    _cameraError!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.white70),
-                                  ),
-                                ),
-                              )
-                            : !_cameraReady || _cameraController == null
-                                ? const Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColors.primaryStart,
+                      child: AspectRatio(
+                        aspectRatio: 1.0,
+                        child: Container(
+                          color: Colors.black,
+                          width: double.infinity,
+                          child: _cameraError != null
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Text(
+                                      _cameraError!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: Colors.white70),
                                     ),
-                                  )
-                                : CameraPreview(_cameraController!),
+                                  ),
+                                )
+                              : !_cameraReady || _cameraController == null
+                                  ? const Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.primaryStart,
+                                      ),
+                                    )
+                                  : CameraPreview(_cameraController!),
+                        ),
                       ),
                     ),
                     if (_recentDetections.isNotEmpty) ...[
