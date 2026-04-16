@@ -78,6 +78,9 @@ class ScheduledTest(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     topic = Column(String, nullable=False)
+    time_limit_minutes = Column(Integer, default=15)
+    valid_until = Column(DateTime, nullable=True)
+    max_attempts = Column(Integer, default=1)
     created_at = Column(DateTime, server_default=func.now())
 
 class TestResult(Base):

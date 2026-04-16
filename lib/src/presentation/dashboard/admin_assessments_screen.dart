@@ -52,6 +52,10 @@ class AdminAssessmentsScreen extends ConsumerStatefulWidget {
 class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen> {
   final _topicController = TextEditingController();
   bool _isScheduling = false;
+  
+  int _selectedTimeLimit = 15;
+  int _selectedAttempts = 1;
+  int _selectedValidityHours = 24;
 
   @override
   void dispose() {
@@ -65,13 +69,26 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
 
     setState(() => _isScheduling = true);
     try {
+      final validUntil = DateTime.now().add(Duration(hours: _selectedValidityHours)).toUtc().toIso8601String();
       final dio = ref.read(dioProvider);
-      await dio.post('/admin/tests', data: {'topic': topic});
+      
+      await dio.post('/admin/tests', data: {
+        'topic': topic,
+        'time_limit_minutes': _selectedTimeLimit,
+        'valid_until': validUntil,
+        'max_attempts': _selectedAttempts,
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Test scheduled successfully! Students will see it in Announcements.')),
         );
         _topicController.clear();
+        setState(() {
+          _selectedTimeLimit = 15;
+          _selectedAttempts = 1;
+          _selectedValidityHours = 24;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -118,6 +135,55 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
                           borderSide: BorderSide.none,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _selectedTimeLimit,
+                            decoration: InputDecoration(
+                              labelText: 'Time Limit',
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                            ),
+                            items: [5, 10, 15, 30, 60].map((e) => DropdownMenuItem(value: e, child: Text('$e mins'))).toList(),
+                            onChanged: (val) => setState(() => _selectedTimeLimit = val!),
+                            dropdownColor: AppColors.surface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _selectedValidityHours,
+                            decoration: InputDecoration(
+                              labelText: 'Validity',
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                            ),
+                            items: [2, 12, 24, 48, 72].map((e) => DropdownMenuItem(value: e, child: Text('$e hrs'))).toList(),
+                            onChanged: (val) => setState(() => _selectedValidityHours = val!),
+                            dropdownColor: AppColors.surface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _selectedAttempts,
+                            decoration: InputDecoration(
+                              labelText: 'Attempts',
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                            ),
+                            items: [1, 2, 3, 5].map((e) => DropdownMenuItem(value: e, child: Text('$e'))).toList(),
+                            onChanged: (val) => setState(() => _selectedAttempts = val!),
+                            dropdownColor: AppColors.surface,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     SizedBox(

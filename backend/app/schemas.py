@@ -21,8 +21,14 @@ class AttendanceOut(BaseModel):
     class Config:
         from_attributes = True
 
+from typing import Optional
+from datetime import datetime
+
 class ScheduleTestRequest(BaseModel):
     topic: str
+    time_limit_minutes: Optional[int] = 15
+    valid_until: Optional[datetime] = None
+    max_attempts: Optional[int] = 1
 
 class SubmitResultRequest(BaseModel):
     user_id: int

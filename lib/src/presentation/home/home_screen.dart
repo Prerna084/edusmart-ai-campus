@@ -166,50 +166,68 @@ class HomeScreen extends ConsumerWidget {
                         );
                       }
                       return Column(
-                        children: tests.map((test) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => AssessmentScreen(
-                                initialTopic: test.topic,
-                                scheduledTestId: test.id,
-                              )));
-                            },
-                            child: GlassContainer(
-                              padding: const EdgeInsets.all(20),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryStart.withOpacity(0.1),
-                                      shape: BoxShape.circle,
+                        children: tests.map((test) {
+                          final isExpired = test.validUntil != null && DateTime.now().isAfter(test.validUntil!);
+                          final isSubmitted = test.userAttempts >= test.maxAttempts;
+                          final isLocked = isExpired || isSubmitted;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: InkWell(
+                              onTap: isLocked 
+                                ? null 
+                                : () {
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => AssessmentScreen(
+                                      initialTopic: test.topic,
+                                      scheduledTestId: test.id,
+                                      timeLimitMinutes: test.timeLimitMinutes,
+                                    )));
+                                  },
+                              child: GlassContainer(
+                                padding: const EdgeInsets.all(20),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isLocked ? AppColors.surface : AppColors.primaryStart.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        isLocked ? Icons.lock : Icons.notifications_active, 
+                                        color: isLocked ? AppColors.textMuted : AppColors.primaryStart
+                                      ),
                                     ),
-                                    child: const Icon(Icons.notifications_active, color: AppColors.primaryStart),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Scheduled Test: ${test.topic}',
-                                          style: Theme.of(context).textTheme.titleMedium,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Tap to attempt this AI generated MCQ test.',
-                                          style: Theme.of(context).textTheme.bodyMedium,
-                                        ),
-                                      ],
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Scheduled Test: ${test.topic}',
+                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                              color: isLocked ? AppColors.textSecondary : AppColors.textPrimary,
+                                              decoration: isLocked && isExpired ? TextDecoration.lineThrough : null,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            isSubmitted ? 'Submitted.' : (isExpired ? 'Expired.' : 'Tap to attempt this test.'),
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              color: isSubmitted ? AppColors.success : (isExpired ? AppColors.error : AppColors.textSecondary),
+                                              fontWeight: isLocked ? FontWeight.bold : FontWeight.normal,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const Icon(Icons.chevron_right, color: AppColors.textMuted),
-                                ],
+                                    if (!isLocked) const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        )).toList(),
+                          );
+                        }).toList(),
                       );
                     },
                     loading: () => const Center(child: CircularProgressIndicator()),

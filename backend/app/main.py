@@ -705,12 +705,20 @@ def schedule_test(data: ScheduleTestRequest, db: Session = Depends(get_db)):
     """
     Admin schedules a new test by defining a topic.
     """
-    test = ScheduledTest(topic=data.topic)
+    test = ScheduledTest(
+        topic=data.topic,
+        time_limit_minutes=data.time_limit_minutes,
+        valid_until=data.valid_until,
+        max_attempts=data.max_attempts
+    )
     db.add(test)
     db.commit()
     db.refresh(test)
     return {"message": "Test scheduled successfully", "test": {
-        "id": test.id, "topic": test.topic, "created_at": test.created_at.isoformat() if test.created_at else None
+        "id": test.id, "topic": test.topic, "created_at": test.created_at.isoformat() if test.created_at else None,
+        "time_limit_minutes": test.time_limit_minutes,
+        "valid_until": test.valid_until.isoformat() if test.valid_until else None,
+        "max_attempts": test.max_attempts
     }}
 
 @app.get("/tests/scheduled")
@@ -719,7 +727,14 @@ def get_scheduled_tests(db: Session = Depends(get_db)):
     Student fetches all active scheduled tests for the announcements tab.
     """
     tests = db.query(ScheduledTest).order_by(ScheduledTest.created_at.desc()).all()
-    return [{"id": t.id, "topic": t.topic, "created_at": t.created_at.isoformat() if t.created_at else None} for t in tests]
+    return [{
+        "id": t.id, 
+        "topic": t.topic, 
+        "time_limit_minutes": t.time_limit_minutes,
+        "valid_until": t.valid_until.isoformat() if t.valid_until else None,
+        "max_attempts": t.max_attempts,
+        "created_at": t.created_at.isoformat() if t.created_at else None
+    } for t in tests]
 
 @app.post("/tests/{test_id}/submit")
 def submit_test_result(test_id: int, data: SubmitResultRequest, db: Session = Depends(get_db)):
@@ -776,6 +791,21 @@ def get_test_results(db: Session = Depends(get_db)):
         }
         for r in results
     ]
+
+@app.get("/student/{user_id}/tests/results")
+def get_personal_test_results(user_id: int, db: Session = Depends(get_db)):
+    """
+    Fetch all attempts by a specific student.
+    Returns array mapping test_id -> count of attempts to verify lock statuses.
+    """
+    from sqlalchemy import func
+    results = (
+        db.query(TestResult.test_id, func.count(TestResult.id).label("attempts"))
+        .filter(TestResult.user_id == user_id)
+        .group_by(TestResult.test_id)
+        .all()
+    )
+    return [{"test_id": r.test_id, "attempts": r.attempts} for r in results]
 
 
 if __name__ == "__main__":

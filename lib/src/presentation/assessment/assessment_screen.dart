@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import 'assessment_controller.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
@@ -9,8 +10,9 @@ import '../profile/profile_provider.dart';
 class AssessmentScreen extends ConsumerStatefulWidget {
   final String? initialTopic;
   final int? scheduledTestId;
+  final int? timeLimitMinutes;
 
-  const AssessmentScreen({super.key, this.initialTopic, this.scheduledTestId});
+  const AssessmentScreen({super.key, this.initialTopic, this.scheduledTestId, this.timeLimitMinutes});
 
   @override
   ConsumerState<AssessmentScreen> createState() => _AssessmentScreenState();
@@ -19,6 +21,9 @@ class AssessmentScreen extends ConsumerStatefulWidget {
 class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
   late final TextEditingController _topicController;
   final Map<int, int> _selectedAnswers = {};
+  Timer? _timer;
+  int _timeLeftSeconds = 0;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -33,12 +38,98 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
 
   @override
   void dispose() {
+    _timer?.cancel();
     _topicController.dispose();
     super.dispose();
   }
 
+  void _startTimer() {
+    if (widget.timeLimitMinutes == null || widget.timeLimitMinutes! <= 0) return;
+    setState(() {
+      _timeLeftSeconds = widget.timeLimitMinutes! * 60;
+    });
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_timeLeftSeconds > 0) {
+        if (mounted) setState(() => _timeLeftSeconds--);
+      } else {
+        timer.cancel();
+        _submitTest(isAuto: true);
+      }
+    });
+  }
+
+  String _formatTime() {
+    final m = _timeLeftSeconds ~/ 60;
+    final s = _timeLeftSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _submitTest({bool isAuto = false}) async {
+    if (_isSubmitting) return;
+    final state = ref.read(assessmentControllerProvider);
+    final controller = ref.read(assessmentControllerProvider.notifier);
+
+    if (state.currentAssessment == null) return;
+    final total = state.currentAssessment!.questions.length;
+
+    if (!isAuto && _selectedAnswers.length < total) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please answer all questions before finishing.')),
+      );
+      return;
+    }
+
+    _isSubmitting = true;
+    _timer?.cancel();
+
+    final correct = state.currentAssessment!.questions
+        .asMap()
+        .entries
+        .where((entry) => _selectedAnswers[entry.key] == entry.value.correctOptionIndex)
+        .length;
+    final percent = total == 0 ? 0 : ((correct / total) * 100).round();
+
+    controller.completeCurrentAssessment(_selectedAnswers);
+    
+    if (widget.scheduledTestId != null) {
+      try {
+        final dio = ref.read(dioProvider);
+        final userId = int.tryParse(ref.read(profileProvider).valueOrNull?.studentId ?? '') ?? 0;
+        if (userId > 0) {
+          await dio.post(
+            '/tests/${widget.scheduledTestId}/submit',
+            data: {
+              'user_id': userId,
+              'score': correct,
+              'total_questions': total,
+            },
+          );
+        }
+      } catch (e) {
+        debugPrint('Failed to submit result: $e');
+      }
+    }
+
+    _selectedAnswers.clear();
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isAuto ? 'Time is up! Auto-submitted. Score: $percent%' : 'Quiz completed! Score: $percent% ($correct/$total)')),
+      );
+      Navigator.pop(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(assessmentControllerProvider, (prev, next) {
+      if (prev?.currentAssessment == null && next.currentAssessment != null) {
+        if (_timer == null) {
+          _startTimer();
+        }
+      }
+    });
+
     final state = ref.watch(assessmentControllerProvider);
     final controller = ref.read(assessmentControllerProvider.notifier);
 
@@ -53,9 +144,37 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'AI Assessment',
-                  style: Theme.of(context).textTheme.displayMedium,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'AI Assessment',
+                      style: Theme.of(context).textTheme.displayMedium,
+                    ),
+                    if (_timer != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _timeLeftSeconds < 60 ? AppColors.error.withOpacity(0.1) : AppColors.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _timeLeftSeconds < 60 ? AppColors.error : AppColors.primaryStart),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.timer, color: _timeLeftSeconds < 60 ? AppColors.error : AppColors.primaryStart, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatTime(),
+                              style: TextStyle(
+                                color: _timeLeftSeconds < 60 ? AppColors.error : AppColors.primaryStart,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -174,49 +293,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () async {
-                            if (state.currentAssessment == null) return;
-                            final total = state.currentAssessment!.questions.length;
-                            if (_selectedAnswers.length < total) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please answer all questions before finishing.')),
-                              );
-                              return;
-                            }
-
-                            final correct = state.currentAssessment!.questions
-                                .asMap()
-                                .entries
-                                .where((entry) => _selectedAnswers[entry.key] == entry.value.correctOptionIndex)
-                                .length;
-                            final percent = total == 0 ? 0 : ((correct / total) * 100).round();
-
-                            controller.completeCurrentAssessment(_selectedAnswers);
-                            _selectedAnswers.clear();
-
-                            if (widget.scheduledTestId != null) {
-                              try {
-                                final dio = ref.read(dioProvider);
-                                final userId = int.tryParse(ref.read(profileProvider).valueOrNull?.studentId ?? '') ?? 0;
-                                if (userId > 0) {
-                                  await dio.post(
-                                    '/tests/${widget.scheduledTestId}/submit',
-                                    data: {
-                                      'user_id': userId,
-                                      'score': correct,
-                                      'total_questions': total,
-                                    },
-                                  );
-                                }
-                              } catch (e) {
-                                debugPrint('Failed to submit result: $e');
-                              }
-                            }
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Quiz completed! Score: $percent% ($correct/$total)')),
-                            );
-                          },
+                          onPressed: () => _submitTest(isAuto: false),
                           child: const Text('Finish Quiz'),
                         ),
                       ),
