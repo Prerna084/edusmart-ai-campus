@@ -20,3 +20,11 @@ class AttendanceOut(BaseModel):
     
     class Config:
         from_attributes = True
+
+class ScheduleTestRequest(BaseModel):
+    topic: str
+
+class SubmitResultRequest(BaseModel):
+    user_id: int
+    score: int
+    total_questions: int

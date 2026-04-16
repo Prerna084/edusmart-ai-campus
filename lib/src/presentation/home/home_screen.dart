@@ -6,6 +6,7 @@ import '../assessment/assessment_screen.dart';
 import '../attendance/attendance_screen.dart';
 import '../dashboard/attendance_dashboard_screen.dart';
 import '../profile/profile_provider.dart';
+import 'scheduled_tests_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   final Function(int)? onTabNavigation;
@@ -153,37 +154,68 @@ class HomeScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 16),
-              GlassContainer(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryStart.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.notifications, color: AppColors.primaryStart),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Exam Schedule Released',
-                            style: Theme.of(context).textTheme.titleMedium,
+              Consumer(
+                builder: (context, ref, child) {
+                  final testsAsync = ref.watch(scheduledTestsProvider);
+                  return testsAsync.when(
+                    data: (tests) {
+                      if (tests.isEmpty) {
+                        return GlassContainer(
+                          padding: const EdgeInsets.all(20),
+                          child: const Text('No new announcements at this time.', style: TextStyle(color: AppColors.textSecondary)),
+                        );
+                      }
+                      return Column(
+                        children: tests.map((test) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => AssessmentScreen(
+                                initialTopic: test.topic,
+                                scheduledTestId: test.id,
+                              )));
+                            },
+                            child: GlassContainer(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryStart.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.notifications_active, color: AppColors.primaryStart),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Scheduled Test: ${test.topic}',
+                                          style: Theme.of(context).textTheme.titleMedium,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Tap to attempt this AI generated MCQ test.',
+                                          style: Theme.of(context).textTheme.bodyMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                                ],
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Mid-term exams start from Nov 15th.',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                        )).toList(),
+                      );
+                    },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Text('Error loading announcements', style: const TextStyle(color: AppColors.error)),
+                  );
+                },
               ),
             ],
           ),

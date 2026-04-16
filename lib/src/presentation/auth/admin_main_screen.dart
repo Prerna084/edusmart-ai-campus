@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../dashboard/attendance_dashboard_screen.dart';
 import '../dashboard/student_list_screen.dart';
+import '../dashboard/admin_assessments_screen.dart';
 import 'login_screen.dart';
 
 /// Admin-only shell with two tabs:
@@ -22,7 +23,7 @@ class _AdminMainScreenState extends State<AdminMainScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -69,6 +70,10 @@ class _AdminMainScreenState extends State<AdminMainScreen>
               icon: Icon(Icons.people_alt_rounded),
               text: 'Students',
             ),
+            Tab(
+              icon: Icon(Icons.assignment),
+              text: 'Tests',
+            ),
           ],
         ),
       ),
@@ -83,6 +88,9 @@ class _AdminMainScreenState extends State<AdminMainScreen>
 
           // Tab 1 — Registered student list
           const StudentListScreen(),
+
+          // Tab 2 — Admin Assessments and results
+          const AdminAssessmentsScreen(),
         ],
       ),
     );

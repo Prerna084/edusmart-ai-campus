@@ -3,17 +3,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'assessment_controller.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/network/dio_client.dart';
+import '../profile/profile_provider.dart';
 
 class AssessmentScreen extends ConsumerStatefulWidget {
-  const AssessmentScreen({super.key});
+  final String? initialTopic;
+  final int? scheduledTestId;
+
+  const AssessmentScreen({super.key, this.initialTopic, this.scheduledTestId});
 
   @override
   ConsumerState<AssessmentScreen> createState() => _AssessmentScreenState();
 }
 
 class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
-  final TextEditingController _topicController = TextEditingController();
+  late final TextEditingController _topicController;
   final Map<int, int> _selectedAnswers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _topicController = TextEditingController(text: widget.initialTopic ?? '');
+    if (widget.initialTopic != null && widget.initialTopic!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(assessmentControllerProvider.notifier).generate(widget.initialTopic!);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -158,7 +174,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
                             if (state.currentAssessment == null) return;
                             final total = state.currentAssessment!.questions.length;
                             if (_selectedAnswers.length < total) {
@@ -177,6 +193,25 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
 
                             controller.completeCurrentAssessment(_selectedAnswers);
                             _selectedAnswers.clear();
+
+                            if (widget.scheduledTestId != null) {
+                              try {
+                                final dio = ref.read(dioProvider);
+                                final userId = int.tryParse(ref.read(profileProvider).valueOrNull?.studentId ?? '') ?? 0;
+                                if (userId > 0) {
+                                  await dio.post(
+                                    '/tests/${widget.scheduledTestId}/submit',
+                                    data: {
+                                      'user_id': userId,
+                                      'score': correct,
+                                      'total_questions': total,
+                                    },
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint('Failed to submit result: $e');
+                              }
+                            }
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Quiz completed! Score: $percent% ($correct/$total)')),

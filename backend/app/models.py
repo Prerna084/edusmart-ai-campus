@@ -69,3 +69,23 @@ class Topic(Base):
     doc_url = Column(String, nullable=True)       # official docs link
     code_example = Column(Text, nullable=True)    # code snippet
     practice_task = Column(Text, nullable=True)   # what to build
+
+
+# ── Scheduled Assessments ───────────────────────────────────────────────────
+
+class ScheduledTest(Base):
+    __tablename__ = "scheduled_tests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    topic = Column(String, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+class TestResult(Base):
+    __tablename__ = "test_results"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    test_id = Column(Integer, ForeignKey("scheduled_tests.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    score = Column(Integer, nullable=False)
+    total_questions = Column(Integer, nullable=False)
+    completed_at = Column(DateTime, server_default=func.now())

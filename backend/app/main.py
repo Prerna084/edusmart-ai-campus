@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
-from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic
+from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic, ScheduledTest, TestResult
+from app.schemas import ScheduleTestRequest, SubmitResultRequest
 from app.face_engine import encode_face, find_best_match
 import json
 from datetime import date, datetime
@@ -695,6 +696,86 @@ def get_topic(topic_id: int, db: Session = Depends(get_db)):
         "code_example": topic.code_example,
         "practice_task": topic.practice_task,
     }
+
+
+# ── Assessments API ─────────────────────────────────────────────────────────
+
+@app.post("/admin/tests")
+def schedule_test(data: ScheduleTestRequest, db: Session = Depends(get_db)):
+    """
+    Admin schedules a new test by defining a topic.
+    """
+    test = ScheduledTest(topic=data.topic)
+    db.add(test)
+    db.commit()
+    db.refresh(test)
+    return {"message": "Test scheduled successfully", "test": {
+        "id": test.id, "topic": test.topic, "created_at": test.created_at.isoformat() if test.created_at else None
+    }}
+
+@app.get("/tests/scheduled")
+def get_scheduled_tests(db: Session = Depends(get_db)):
+    """
+    Student fetches all active scheduled tests for the announcements tab.
+    """
+    tests = db.query(ScheduledTest).order_by(ScheduledTest.created_at.desc()).all()
+    return [{"id": t.id, "topic": t.topic, "created_at": t.created_at.isoformat() if t.created_at else None} for t in tests]
+
+@app.post("/tests/{test_id}/submit")
+def submit_test_result(test_id: int, data: SubmitResultRequest, db: Session = Depends(get_db)):
+    """
+    Student submits the results of their AI generated assessment wrapper.
+    """
+    test = db.query(ScheduledTest).filter(ScheduledTest.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+        
+    user = db.query(User).filter(User.id == data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    result = TestResult(
+        test_id=test_id,
+        user_id=data.user_id,
+        score=data.score,
+        total_questions=data.total_questions
+    )
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+    return {"message": "Result submitted successfully", "score": result.score}
+
+@app.get("/admin/tests/results")
+def get_test_results(db: Session = Depends(get_db)):
+    """
+    Admin views all test submissions across all users.
+    """
+    results = (
+        db.query(
+            TestResult.id,
+            TestResult.score,
+            TestResult.total_questions,
+            TestResult.completed_at,
+            User.name.label("student_name"),
+            ScheduledTest.topic.label("test_topic")
+        )
+        .join(User, TestResult.user_id == User.id)
+        .join(ScheduledTest, TestResult.test_id == ScheduledTest.id)
+        .order_by(TestResult.completed_at.desc())
+        .all()
+    )
+    
+    return [
+        {
+            "id": r.id,
+            "student_name": r.student_name,
+            "topic": r.test_topic,
+            "score": r.score,
+            "total_questions": r.total_questions,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None
+        }
+        for r in results
+    ]
 
 
 if __name__ == "__main__":
