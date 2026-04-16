@@ -15,7 +15,25 @@ from fastapi.middleware.cors import CORSMiddleware
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
-
+# Auto-upgrade SQLite / Postgres tables for ScheduledTest
+from sqlalchemy import text
+with engine.connect() as conn:
+    try:
+        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN time_limit_minutes INTEGER DEFAULT 15"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN valid_until TIMESTAMP"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN max_attempts INTEGER DEFAULT 1"))
+    except Exception:
+        pass
+    try:
+        conn.commit()
+    except Exception:
+        pass
 def _auto_seed_syllabus():
     """Seed syllabus data if the subjects table is empty."""
     db = SessionLocal()
