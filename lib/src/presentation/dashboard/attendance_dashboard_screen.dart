@@ -367,7 +367,16 @@ class _AttendanceDashboardScreenState
                                         color: AppColors.primaryStart,
                                       ),
                                     )
-                                  : CameraPreview(_cameraController!),
+                                  : ClipRect(
+                                      child: FittedBox(
+                                        fit: BoxFit.cover,
+                                        child: SizedBox(
+                                          width: _cameraController!.value.aspectRatio * 100,
+                                          height: 100,
+                                          child: CameraPreview(_cameraController!),
+                                        ),
+                                      ),
+                                    ),
                         ),
                       ),
                     ),
