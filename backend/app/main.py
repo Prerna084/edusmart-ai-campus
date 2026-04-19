@@ -75,6 +75,10 @@ with engine.connect() as conn:
     except Exception:
         pass
     try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR"))
+    except Exception:
+        pass
+    try:
         conn.commit()
     except Exception:
         pass

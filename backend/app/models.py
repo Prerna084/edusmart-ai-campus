@@ -6,6 +6,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
     password_hash = Column(String, nullable=True)
     face_encoding = Column(String)  # Stored as JSON string
