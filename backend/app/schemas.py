@@ -29,8 +29,12 @@ class ScheduleTestRequest(BaseModel):
     time_limit_minutes: Optional[int] = 15
     valid_until: Optional[datetime] = None
     max_attempts: Optional[int] = 1
+    num_questions: Optional[int] = 5
+    difficulty: Optional[str] = "Mixed Mode"
 
 class SubmitResultRequest(BaseModel):
     user_id: int
     score: int
     total_questions: int
+    questions_data: Optional[str] = None
+    user_answers_data: Optional[str] = None

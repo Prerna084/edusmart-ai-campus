@@ -31,6 +31,34 @@ with engine.connect() as conn:
     except Exception:
         pass
     try:
+        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN num_questions INTEGER DEFAULT 5"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN difficulty VARCHAR DEFAULT 'Mixed Mode'"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE test_results ADD COLUMN questions_data TEXT"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE test_results ADD COLUMN user_answers_data TEXT"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE test_results ADD COLUMN teacher_feedback TEXT"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN semester VARCHAR"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN batch VARCHAR"))
+    except Exception:
+        pass
+    try:
         conn.commit()
     except Exception:
         pass

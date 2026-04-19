@@ -33,6 +33,8 @@ class StudentProfile(Base):
     phone = Column(String, nullable=True)
     department = Column(String, nullable=True)
     year = Column(String, nullable=True)
+    semester = Column(String, nullable=True)
+    batch = Column(String, nullable=True)
 
 
 # ── Syllabus System ─────────────────────────────────────────────────────────
@@ -81,6 +83,8 @@ class ScheduledTest(Base):
     time_limit_minutes = Column(Integer, default=15)
     valid_until = Column(DateTime, nullable=True)
     max_attempts = Column(Integer, default=1)
+    num_questions = Column(Integer, default=5)
+    difficulty = Column(String, default="Mixed Mode")
     created_at = Column(DateTime, server_default=func.now())
 
 class TestResult(Base):
@@ -91,4 +95,7 @@ class TestResult(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     score = Column(Integer, nullable=False)
     total_questions = Column(Integer, nullable=False)
+    questions_data = Column(Text, nullable=True)
+    user_answers_data = Column(Text, nullable=True)
+    teacher_feedback = Column(Text, nullable=True)
     completed_at = Column(DateTime, server_default=func.now())
