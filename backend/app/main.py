@@ -109,16 +109,29 @@ async def lifespan(app: FastAPI):
     # Ensure role exists and migration runs
     _auto_seed_syllabus()
     
-    # Simple migration to ensure first user can be admin if no admin exists
+    # Ensure a default admin exists
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.role == 'admin').first()
         if not admin:
-            first_user = db.query(User).first()
-            if first_user:
-                first_user.role = 'admin'
+            # Check if default admin email exists but without admin role
+            default_email = "admin@edusmart.edu"
+            admin = db.query(User).filter(User.email == default_email).first()
+            if admin:
+                admin.role = 'admin'
                 db.commit()
-                print(f"👑 Set User ID {first_user.id} ({first_user.email}) as Admin.")
+                print(f"👑 Promoted {default_email} to Admin.")
+            else:
+                # Create default admin from scratch
+                new_admin = User(
+                    name="System Admin",
+                    email=default_email,
+                    password_hash="admin123", # default password
+                    role="admin"
+                )
+                db.add(new_admin)
+                db.commit()
+                print(f"👑 Created default Admin: {default_email}")
     finally:
         db.close()
         
