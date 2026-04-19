@@ -18,21 +18,38 @@ Base.metadata.create_all(bind=engine)
 # Auto-upgrade SQLite / Postgres tables for all models
 from sqlalchemy import text
 with engine.connect() as conn:
-    # Users table upgrades
-    for col in [
+    is_postgres = "postgresql" in str(engine.url)
+    
+    def safe_add_column(table, col_name, col_type):
+        """Cross-database column addition helper."""
+        try:
+            if is_postgres:
+                # Postgres 9.6+ supports IF NOT EXISTS
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+            else:
+                # SQLite: fails if already exists, which we catch
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
+            conn.commit()
+        except Exception:
+            # If postgres transaction is aborted, we must rollback to continue
+            try:
+                conn.rollback()
+            except:
+                pass
+            pass
+
+    # --- Users table ---
+    for col, ctype in [
         ("email", "VARCHAR UNIQUE"),
         ("password_hash", "VARCHAR"),
         ("name", "VARCHAR"),
-        ("face_encoding", "TEXT"), # Support longer encoding strings if needed
+        ("face_encoding", "TEXT"),
         ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     ]:
-        try:
-            conn.execute(text(f"ALTER TABLE users ADD COLUMN {col[0]} {col[1]}"))
-        except Exception:
-            pass
+        safe_add_column("users", col, ctype)
             
-    # Student Profile upgrades
-    for col in [
+    # --- Student Profile table ---
+    for col, ctype in [
         ("email", "VARCHAR"),
         ("phone", "VARCHAR"),
         ("department", "VARCHAR"),
@@ -42,39 +59,25 @@ with engine.connect() as conn:
         ("section", "VARCHAR"),
         ("college_id", "VARCHAR UNIQUE")
     ]:
-        try:
-            conn.execute(text(f"ALTER TABLE student_profiles ADD COLUMN {col[0]} {col[1]}"))
-        except Exception:
-            pass
+        safe_add_column("student_profiles", col, ctype)
 
-    # Scheduled Test upgrades
-    for col in [
+    # --- Scheduled Test table ---
+    for col, ctype in [
         ("time_limit_minutes", "INTEGER DEFAULT 15"),
         ("valid_until", "TIMESTAMP"),
         ("max_attempts", "INTEGER DEFAULT 1"),
         ("num_questions", "INTEGER DEFAULT 5"),
         ("difficulty", "VARCHAR DEFAULT 'Mixed Mode'")
     ]:
-        try:
-            conn.execute(text(f"ALTER TABLE scheduled_tests ADD COLUMN {col[0]} {col[1]}"))
-        except Exception:
-            pass
+        safe_add_column("scheduled_tests", col, ctype)
 
-    # Test Results upgrades
-    for col in [
+    # --- Test Results table ---
+    for col, ctype in [
         ("questions_data", "TEXT"),
         ("user_answers_data", "TEXT"),
         ("teacher_feedback", "TEXT")
     ]:
-        try:
-            conn.execute(text(f"ALTER TABLE test_results ADD COLUMN {col[0]} {col[1]}"))
-        except Exception:
-            pass
-
-    try:
-        conn.commit()
-    except Exception:
-        pass
+        safe_add_column("test_results", col, ctype)
 def _auto_seed_syllabus():
     """Seed syllabus data if the subjects table is empty."""
     db = SessionLocal()
