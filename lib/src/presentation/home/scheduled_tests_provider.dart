@@ -10,6 +10,7 @@ class ScheduledTestModel {
   final DateTime? validUntil;
   final int numQuestions;
   final String difficulty;
+  final int maxAttempts;
   String? teacherFeedback;
   int userAttempts;
 
@@ -19,7 +20,7 @@ class ScheduledTestModel {
     this.createdAt,
     this.timeLimitMinutes = 15,
     this.validUntil,
-    this.max_attempts = 1,
+    this.maxAttempts = 1,
     this.numQuestions = 5,
     this.difficulty = 'Mixed Mode',
     this.teacherFeedback,
@@ -33,7 +34,7 @@ class ScheduledTestModel {
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
       timeLimitMinutes: json['time_limit_minutes'] ?? 15,
       validUntil: json['valid_until'] != null ? DateTime.parse(json['valid_until']) : null,
-      max_attempts: json['max_attempts'] ?? 1,
+      maxAttempts: json['max_attempts'] ?? 1,
       numQuestions: json['num_questions'] ?? 5,
       difficulty: json['difficulty'] ?? 'Mixed Mode',
     );
@@ -48,9 +49,9 @@ final scheduledTestsProvider = FutureProvider<List<ScheduledTestModel>>((ref) as
   final List data = response.data;
   final tests = data.map((e) => ScheduledTestModel.fromJson(e)).toList();
 
-  // Fetch personal attempts if user logged in successfully mapping
-  final profileStrId = ref.read(profileProvider).valueOrNull?.studentId;
-  final userId = int.tryParse(profileStrId ?? '');
+  // Fetch personal attempts if user logged in
+  final profile = ref.read(profileProvider).valueOrNull;
+  final userId = int.tryParse(profile?.userId ?? '');
   
   if (userId != null) {
       try {

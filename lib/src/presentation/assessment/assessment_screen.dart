@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'assessment_controller.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
@@ -96,7 +97,6 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         .entries
         .where((entry) => _selectedAnswers[entry.key] == entry.value.correctOptionIndex)
         .length;
-    final total = state.currentAssessment!.questions.length;
     final percent = total == 0 ? 0 : ((correct / total) * 100).round();
 
     _totalCorrect = correct;
@@ -106,11 +106,10 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
       try {
         final dio = ref.read(dioProvider);
         final profile = ref.read(profileProvider).valueOrNull;
-        final userId = int.tryParse(profile?.studentId ?? '') ?? 0;
+        final userId = int.tryParse(profile?.userId ?? '') ?? 0;
         
         if (userId > 0) {
           // Prepare question and answer data for review
-          import 'dart:convert';
           final questionsJson = jsonEncode((state.currentAssessment!.questions as List).map((q) => {
             'text': q.text,
             'options': q.options,

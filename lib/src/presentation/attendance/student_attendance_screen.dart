@@ -30,9 +30,9 @@ class StudentAttendanceScreen extends ConsumerWidget {
         body: Center(child: Text('Profile error: $e')),
       ),
       data: (profile) {
-        final studentId = int.tryParse(profile.studentId.trim());
+        final studentId = int.tryParse(profile.userId.trim());
         if (studentId == null) {
-          return _InvalidStudentIdView(studentIdValue: profile.studentId);
+          return _InvalidStudentIdView(studentIdValue: profile.userId);
         }
 
         final attendanceAsync = ref.watch(studentAttendanceProvider(studentId));

@@ -168,7 +168,7 @@ class HomeScreen extends ConsumerWidget {
                       return Column(
                         children: tests.map((test) {
                           final isExpired = test.validUntil != null && DateTime.now().isAfter(test.validUntil!);
-                          final isSubmitted = test.userAttempts >= test.max_attempts;
+                          final isSubmitted = test.userAttempts >= test.maxAttempts;
                           final isLocked = isExpired || isSubmitted;
 
                           return Padding(
