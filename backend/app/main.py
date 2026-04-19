@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
-from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic, ScheduledTest, TestResult
+from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic, ScheduledTest, TestResult, TeacherProfile, TeacherSubject, WeeklyStudyPlan
 from app import schemas
 from app.face_engine import encode_face, find_best_match
 import json
