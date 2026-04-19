@@ -16,7 +16,8 @@ import '../teacher/teacher_dashboard_screen.dart';
 import 'teacher_register_screen.dart';
 import 'teacher_login_screen.dart';
 import 'admin_main_screen.dart';
-import 'admin_login_screen.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override

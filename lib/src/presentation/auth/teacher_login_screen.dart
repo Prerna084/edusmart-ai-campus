@@ -6,7 +6,7 @@ import '../../core/network/dio_client.dart';
 import '../widgets/glass_container.dart';
 import '../profile/profile_provider.dart';
 import '../teacher/teacher_dashboard_screen.dart';
-import '../presentation/auth/admin_main_screen.dart';
+import 'admin_main_screen.dart';
 
 class TeacherLoginScreen extends ConsumerStatefulWidget {
   const TeacherLoginScreen({super.key});
