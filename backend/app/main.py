@@ -933,7 +933,10 @@ def get_scheduled_tests(db: Session = Depends(get_db)):
     Student fetches all active scheduled tests for the announcements tab.
     Sorted by scheduled_at desc (latest scheduled test first).
     """
-    tests = db.query(ScheduledTest).order_by(ScheduledTest.scheduled_at.desc()).all()
+    tests = db.query(ScheduledTest).order_by(
+        ScheduledTest.scheduled_at.desc().nullslast(),
+        ScheduledTest.id.desc()
+    ).all()
     return [{
         "id": t.id, 
         "topic": t.topic, 
