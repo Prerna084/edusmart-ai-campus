@@ -14,9 +14,9 @@ class CameraUtils {
             InputImageRotation.rotation90deg;
 
     // Correct format mapping
-    final InputImageFormat format = _getInputImageFormat(image);
+    final InputImageFormat? format = _getInputImageFormat(image);
 
-    if (format == InputImageFormat.unknown) return null;
+    if (format == null) return null;
 
     // For Android (YUV420), we need to concatenate the planes correctly.
     // For iOS (BGRA8888), we can usually take the first plane.
@@ -34,7 +34,7 @@ class CameraUtils {
     );
   }
 
-  static InputImageFormat _getInputImageFormat(CameraImage image) {
+  static InputImageFormat? _getInputImageFormat(CameraImage image) {
     if (defaultTargetPlatform == TargetPlatform.android) {
       // 35 is YUV_420_888 on Android
       if (image.format.raw == 35) return InputImageFormat.yuv420;
@@ -42,7 +42,7 @@ class CameraUtils {
       // 1111970369 is BGRA8888 on iOS
       if (image.format.raw == 1111970369) return InputImageFormat.bgra8888;
     }
-    return InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.unknown;
+    return InputImageFormatValue.fromRawValue(image.format.raw);
   }
 
   static Uint8List? _concatenatePlanes(CameraImage image, InputImageFormat format) {
