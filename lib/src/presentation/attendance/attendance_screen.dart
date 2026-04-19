@@ -98,11 +98,17 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         );
 
         if (inputImage != null) {
-          final faces = await _faceDetector.processImage(inputImage);
-          if (mounted) {
-            setState(() {
-              _faces = faces;
-            });
+          try {
+            final faces = await _faceDetector.processImage(inputImage);
+            if (mounted) {
+              setState(() {
+                _faces = faces;
+              });
+            }
+          } catch (e) {
+            if (!e.toString().contains('InputImageConverterError')) {
+              debugPrint('Face detection error: $e');
+            }
           }
         }
       } catch (e) {

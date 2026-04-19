@@ -176,14 +176,23 @@ class _AttendanceDashboardScreenState
         );
 
         if (inputImage != null) {
-          final faces = await _faceDetector.processImage(inputImage);
-          if (faces.isNotEmpty) {
-            debugPrint('Faces detected: ${faces.length}');
-          }
-          if (mounted) {
-            setState(() {
-              _faces = faces;
-            });
+          try {
+            final faces = await _faceDetector.processImage(inputImage);
+            if (faces.isNotEmpty) {
+              debugPrint('Faces detected: ${faces.length}');
+            }
+            if (mounted) {
+              setState(() {
+                _faces = faces;
+              });
+            }
+          } catch (e) {
+             // Silently handle transient conversion errors for specific frames
+             if (e.toString().contains('InputImageConverterError')) {
+                // Ignore format errors for individual frames to keep logs clean
+             } else {
+                debugPrint('Face detection error: $e');
+             }
           }
         }
       } catch (e) {

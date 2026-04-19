@@ -448,11 +448,24 @@ async def mark_attendance(
             ),
         )
 
-    users = db.query(User).filter(User.face_encoding != None).all()
-    if not users:
+    users_raw = db.query(User).filter(User.face_encoding != None).all()
+    if not users_raw:
         raise HTTPException(status_code=404, detail="No registered users with face data found.")
 
-    known_encodings = [np.array(json.loads(user.face_encoding)) for user in users]
+    known_encodings = []
+    users = []
+    for u in users_raw:
+        try:
+            encoding = np.array(json.loads(u.face_encoding))
+            known_encodings.append(encoding)
+            users.append(u)
+        except Exception:
+            print(f"⚠️ Skipping corrupted face data for user ID {u.id}")
+            continue
+
+    if not known_encodings:
+        raise HTTPException(status_code=404, detail="No valid face data found in database.")
+
     matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
 
     if matched is None:
@@ -522,11 +535,24 @@ async def recognize_face(
             ),
         )
 
-    users = db.query(User).filter(User.face_encoding != None).all()
-    if not users:
+    users_raw = db.query(User).filter(User.face_encoding != None).all()
+    if not users_raw:
         raise HTTPException(status_code=404, detail="No registered users with face data found.")
 
-    known_encodings = [np.array(json.loads(user.face_encoding)) for user in users]
+    known_encodings = []
+    users = []
+    for u in users_raw:
+        try:
+            encoding = np.array(json.loads(u.face_encoding))
+            known_encodings.append(encoding)
+            users.append(u)
+        except Exception:
+            print(f"⚠️ Skipping corrupted face data for user ID {u.id}")
+            continue
+
+    if not known_encodings:
+        raise HTTPException(status_code=404, detail="No valid face data found in database.")
+
     matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
 
     if matched is None:
