@@ -9,6 +9,7 @@ class User(Base):
     name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
     password_hash = Column(String, nullable=True)
+    role = Column(String, default="student") # roles: admin, teacher, student
     face_encoding = Column(String, nullable=True)  # Stored as JSON string
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -104,3 +105,38 @@ class TestResult(Base):
     user_answers_data = Column(Text, nullable=True)
     teacher_feedback = Column(Text, nullable=True)
     completed_at = Column(DateTime, server_default=func.now())
+
+
+# ── Teacher & Study Plan System ─────────────────────────────────────────────
+
+class TeacherProfile(Base):
+    """Profile for a registered teacher."""
+    __tablename__ = "teacher_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    department = Column(String, nullable=True)
+    designation = Column(String, nullable=True) # e.g. Assistant Professor
+
+class TeacherSubject(Base):
+    """Maps teachers to subjects with specific batch/section context."""
+    __tablename__ = "teacher_subjects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    semester = Column(String, nullable=False)
+    batch = Column(String, nullable=False)
+    section = Column(String, nullable=False)
+
+class WeeklyStudyPlan(Base):
+    """AI-generated or manual study plans for a specific subject assignment."""
+    __tablename__ = "weekly_study_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_subject_id = Column(Integer, ForeignKey("teacher_subjects.id"), nullable=False)
+    week_number = Column(Integer, nullable=False)
+    title = Column(String, nullable=False) # e.g. Week 1: Introduction
+    content = Column(Text, nullable=False) # JSON string: {topics: [], objectives: [], suggested_sequence: []}
+    is_approved = Column(Integer, default=0) # 0=Pending, 1=Approved
+    created_at = Column(DateTime, server_default=func.now())

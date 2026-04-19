@@ -11,6 +11,8 @@ import '../home/home_screen.dart';
 import '../syllabus/syllabus_screen.dart';
 import '../chatbot/chatbot_screen.dart';
 import '../profile/profile_screen.dart';
+import '../teacher/teacher_dashboard_screen.dart';
+import 'teacher_register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -60,21 +62,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         email: profileData['email'] ?? '',
         phone: profileData['phone'] ?? '',
         userId: data['user_id'].toString(),
-        collegeId: profileData['college_id'] ?? '',
-        department: profileData['department'] ?? '',
-        year: profileData['year'] ?? '',
         batch: profileData['batch'] ?? '',
         semester: profileData['semester'] ?? '',
         section: profileData['section'] ?? '',
+        role: data['role'] ?? 'student',
       );
 
       await ref.read(profileProvider.notifier).updateProfile(userProfile);
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
+        if (userProfile.role == 'teacher') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const TeacherDashboardScreen()),
+          );
+        } else if (userProfile.role == 'admin') {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminMainScreen())); // Admin should go to specific dashboard
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainScreen()),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -257,12 +266,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 12),
           const Text('Access academic console and controls.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12), textAlign: TextAlign.center),
           const SizedBox(height: 32),
-          SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminLoginScreen())),
               child: const Text('Enter Admin Console'),
             ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Want to join as faculty? ', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              GestureDetector(
+                onTap: () {
+                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherRegisterScreen()));
+                },
+                child: const Text('Register Here', style: TextStyle(color: AppColors.primaryStart, fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           TextButton(

@@ -44,10 +44,10 @@ with engine.connect() as conn:
             pass
 
     # --- Users table ---
-    for col, ctype in [
         ("email", "VARCHAR UNIQUE"),
         ("password_hash", "VARCHAR"),
         ("name", "VARCHAR"),
+        ("role", "VARCHAR DEFAULT 'student'"),
         ("face_encoding", "TEXT"),
         ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     ]:
@@ -106,7 +106,22 @@ def _auto_seed_syllabus():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ──
+    # Ensure role exists and migration runs
     _auto_seed_syllabus()
+    
+    # Simple migration to ensure first user can be admin if no admin exists
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.role == 'admin').first()
+        if not admin:
+            first_user = db.query(User).first()
+            if first_user:
+                first_user.role = 'admin'
+                db.commit()
+                print(f"👑 Set User ID {first_user.id} ({first_user.email}) as Admin.")
+    finally:
+        db.close()
+        
     yield
     # ── Shutdown ──
 
@@ -179,6 +194,7 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
     return {
         "user_id": user.id,
         "name": user.name,
+        "role": user.role,
         "profile": {
             "email": user.email,
             "phone": profile.phone if profile else "",
@@ -190,6 +206,36 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
             "college_id": profile.college_id if profile else "",
         }
     }
+
+@app.post("/auth/register-teacher")
+def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends(get_db)):
+    try:
+        existing = db.query(User).filter(User.email == data.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        new_user = User(
+            name=data.name,
+            email=data.email,
+            password_hash=data.password,
+            role="teacher"
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        profile = TeacherProfile(
+            user_id=new_user.id,
+            department=data.department,
+            designation=data.designation
+        )
+        db.add(profile)
+        db.commit()
+        
+        return {"message": "Teacher registered successfully", "user_id": new_user.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 @app.post("/auth/forgot-password")
 def forgot_password(data: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
@@ -1126,3 +1172,60 @@ if __name__ == "__main__":
     # Make sure to run it matching your module structure or directory.
     # Uvicorn looks for app/main.py if you run from the root.
     uvicorn.run("app.main:app", host="0.0.0.0", port=10000)
+@app.get("/teachers/{teacher_id}/subjects", response_model=list[schemas.TeacherSubjectOut])
+def get_teacher_subjects(teacher_id: int, db: Session = Depends(get_db)):
+    assignments = db.query(TeacherSubject, Subject.title).join(Subject, TeacherSubject.subject_id == Subject.id).filter(TeacherSubject.teacher_id == teacher_id).all()
+    
+    return [
+        schemas.TeacherSubjectOut(
+            id=a.TeacherSubject.id,
+            subject_id=a.TeacherSubject.subject_id,
+            subject_title=a.title,
+            semester=a.TeacherSubject.semester,
+            batch=a.TeacherSubject.batch,
+            section=a.TeacherSubject.section
+        ) for a in assignments
+    ]
+
+@app.post("/teachers/subjects/{assignment_id}/generate-plan")
+def generate_study_plan(assignment_id: int, db: Session = Depends(get_db)):
+    assignment = db.query(TeacherSubject).filter(TeacherSubject.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Check if plans already exist
+    existing = db.query(WeeklyStudyPlan).filter(WeeklyStudyPlan.teacher_subject_id == assignment_id).first()
+    if existing:
+        return {"message": "Plan already generated."}
+
+    # Simulate AI Generation (Mocking robust logic)
+    # In a real app, you would pass the syllabus text to LLM here.
+    subject = db.query(Subject).filter(Subject.id == assignment.subject_id).first()
+    
+    plans = []
+    topics = [
+        {"week": 1, "title": "Introduction to Fundamentals", "topics": ["Overview", "Basic Concepts", "History"], "objective": "Understand basic history and definitions."},
+        {"week": 2, "title": "Core Principles", "topics": ["Principle A", "Principle B", "Case Study"], "objective": "Apply core principles to simple scenarios."},
+        {"week": 3, "title": "Advanced Applications", "topics": ["Optimization", "Scaling", "Tooling"], "objective": "Evaluate advanced tools and methods."},
+    ]
+    
+    for t in topics:
+        plan = WeeklyStudyPlan(
+            teacher_subject_id=assignment.id,
+            week_number=t["week"],
+            title=t["title"],
+            content=json.dumps({
+                "topics": t["topics"],
+                "objective": t["objective"],
+                "suggested_sequence": [f"Lecture: {t['topics'][0]}", f"Lab: {t['topics'][1]}", "Recitation"]
+            })
+        )
+        db.add(plan)
+        plans.append(plan)
+        
+    db.commit()
+    return {"message": "AI Study Plan generated successfully", "weeks": len(plans)}
+
+@app.get("/teachers/subjects/{assignment_id}/plans", response_model=list[schemas.WeeklyStudyPlanOut])
+def get_study_plans(assignment_id: int, db: Session = Depends(get_db)):
+    return db.query(WeeklyStudyPlan).filter(WeeklyStudyPlan.teacher_subject_id == assignment_id).order_by(WeeklyStudyPlan.week_number).all()

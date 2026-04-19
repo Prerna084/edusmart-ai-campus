@@ -61,3 +61,34 @@ class UpdateCollegeIdRequest(BaseModel):
 class UpdatePasswordRequest(BaseModel):
     old_password: str
     new_password: str
+
+# ── Teacher & Study Plan Schemas ────────────────────────────────────────────
+
+class TeacherRegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    department: str
+    designation: Optional[str] = "Assistant Professor"
+
+class TeacherSubjectOut(BaseModel):
+    id: int
+    subject_id: int
+    subject_title: str
+    semester: str
+    batch: str
+    section: str
+    
+    class Config:
+        from_attributes = True
+
+class WeeklyStudyPlanOut(BaseModel):
+    id: int
+    week_number: int
+    title: str
+    content: str # JSON string
+    is_approved: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

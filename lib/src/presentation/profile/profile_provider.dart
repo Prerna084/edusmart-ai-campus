@@ -18,6 +18,7 @@ class UserProfile {
   final String batch;
   final String semester;
   final String section;
+  final String role; // student, teacher, admin
   final String? avatarPath; // local file path
 
   const UserProfile({
@@ -31,6 +32,7 @@ class UserProfile {
     required this.batch,
     required this.semester,
     required this.section,
+    required this.role,
     this.avatarPath,
   });
 
@@ -45,6 +47,7 @@ class UserProfile {
     String? batch,
     String? semester,
     String? section,
+    String? role,
     String? avatarPath,
   }) =>
       UserProfile(
@@ -58,6 +61,7 @@ class UserProfile {
         batch: batch ?? this.batch,
         semester: semester ?? this.semester,
         section: section ?? this.section,
+        role: role ?? this.role,
         avatarPath: avatarPath ?? this.avatarPath,
       );
 
@@ -72,6 +76,7 @@ class UserProfile {
     batch: '',
     semester: '',
     section: '',
+    role: 'student',
     avatarPath: null,
   );
 
@@ -91,6 +96,7 @@ const _kYear = 'profile_year';
 const _kBatch = 'profile_batch';
 const _kSemester = 'profile_semester';
 const _kSection = 'profile_section';
+const _kRole = 'profile_role';
 const _kAvatarPath = 'profile_avatar_path';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +119,7 @@ class ProfileNotifier extends AsyncNotifier<UserProfile> {
       batch: prefs.getString(_kBatch) ?? '',
       semester: prefs.getString(_kSemester) ?? '',
       section: prefs.getString(_kSection) ?? '',
+      role: prefs.getString(_kRole) ?? 'student',
       avatarPath: prefs.getString(_kAvatarPath),
     );
 
@@ -136,6 +143,7 @@ class ProfileNotifier extends AsyncNotifier<UserProfile> {
           batch: data['batch'] as String? ?? local.batch,
           semester: data['semester'] as String? ?? local.semester,
           section: data['section'] as String? ?? local.section,
+          role: data['role'] as String? ?? local.role,
         );
 
         // Persist the synced values locally too
@@ -223,6 +231,7 @@ class ProfileNotifier extends AsyncNotifier<UserProfile> {
     await prefs.setString(_kBatch, p.batch);
     await prefs.setString(_kSemester, p.semester);
     await prefs.setString(_kSection, p.section);
+    await prefs.setString(_kRole, p.role);
     if (p.avatarPath != null) {
       await prefs.setString(_kAvatarPath, p.avatarPath!);
     }
