@@ -6,9 +6,13 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+
 import '../../core/network/dio_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/camera_utils.dart';
 import '../widgets/glass_container.dart';
+import 'attendance_history_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Provider — fetches today's attendance from the backend
@@ -55,6 +59,17 @@ class _AttendanceDashboardScreenState
   List<CameraDescription> _availableCameras = [];
   int _selectedCameraIndex = 0;
 
+  // Face Detection
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      enableContours: false,
+      enableLandmarks: false,
+      performanceMode: FaceDetectorMode.fast,
+    ),
+  );
+  List<Face> _faces = [];
+  bool _isProcessingImage = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,8 +78,10 @@ class _AttendanceDashboardScreenState
 
   @override
   void dispose() {
-    _stopAutoScan();
+    _scanTimer?.cancel();
+    _stopImageStream();
     _cameraController?.dispose();
+    _faceDetector.close();
     super.dispose();
   }
 
@@ -110,6 +127,8 @@ class _AttendanceDashboardScreenState
         _cameraError = null;
         _scanStatus = 'Camera ready';
       });
+
+      _startImageStream();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -140,6 +159,44 @@ class _AttendanceDashboardScreenState
 
     if (wasAutoScanning && _cameraReady) {
       _startAutoScan();
+    }
+  }
+
+  void _startImageStream() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+
+    _cameraController!.startImageStream((image) async {
+      if (_isProcessingImage) return;
+
+      _isProcessingImage = true;
+      try {
+        final inputImage = CameraUtils.inputImageFromCameraImage(
+          image,
+          _availableCameras[_selectedCameraIndex],
+        );
+
+        if (inputImage != null) {
+          final faces = await _faceDetector.processImage(inputImage);
+          if (mounted) {
+            setState(() {
+              _faces = faces;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Face detection error: $e');
+      } finally {
+        _isProcessingImage = false;
+      }
+    });
+  }
+
+  void _stopImageStream() {
+    _cameraController?.stopImageStream();
+    if (mounted) {
+      setState(() {
+        _faces = [];
+      });
     }
   }
 
@@ -431,7 +488,20 @@ class _AttendanceDashboardScreenState
 
                                         return AspectRatio(
                                           aspectRatio: ratio,
-                                          child: CameraPreview(_cameraController!),
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              CameraPreview(_cameraController!),
+                                              if (_faces.isNotEmpty)
+                                                CustomPaint(
+                                                  painter: FaceOverlayPainter(
+                                                    faces: _faces,
+                                                    imageSize: _cameraController!.value.previewSize,
+                                                    rotation: _availableCameras[_selectedCameraIndex].sensorOrientation,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         );
                                       },
                                     ),
@@ -657,5 +727,72 @@ class _EmptyView extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Face Detection Overlay Painter
+// ---------------------------------------------------------------------------
+class FaceOverlayPainter extends CustomPainter {
+  final List<Face> faces;
+  final Size imageSize;
+  final int rotation;
+
+  FaceOverlayPainter({
+    required this.faces,
+    required this.imageSize,
+    required this.rotation,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..color = AppColors.success;
+
+    for (final face in faces) {
+      final rect = _scaleRect(
+        rect: face.boundingBox,
+        imageSize: imageSize,
+        widgetSize: size,
+        rotation: rotation,
+      );
+      canvas.drawRect(rect, paint);
+    }
+  }
+
+  Rect _scaleRect({
+    required Rect rect,
+    required Size imageSize,
+    required Size widgetSize,
+    required int rotation,
+  }) {
+    double scaleX, scaleY;
+
+    // ML Kit results are based on the sensor orientation.
+    // If the image is rotated (90/270), we need to swap width and height for scaling.
+    if (rotation == 90 || rotation == 270) {
+      scaleX = widgetSize.width / imageSize.height;
+      scaleY = widgetSize.height / imageSize.width;
+    } else {
+      scaleX = widgetSize.width / imageSize.width;
+      scaleY = widgetSize.height / imageSize.height;
+    }
+
+    // Mirroring adjustment (Front camera logic)
+    // Note: This is an simplified implementation; front cameras usually need mirroring.
+    
+    return Rect.fromLTRB(
+      rect.left * scaleX,
+      rect.top * scaleY,
+      rect.right * scaleX,
+      rect.bottom * scaleY,
+    );
+  }
+
+  @override
+  bool shouldRepaint(FaceOverlayPainter oldDelegate) {
+    return oldDelegate.faces != faces;
   }
 }

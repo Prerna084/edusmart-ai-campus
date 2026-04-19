@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:camera/camera.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '../../core/network/dio_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/camera_utils.dart';
 import '../widgets/glass_container.dart';
 
 class AttendanceScreen extends ConsumerStatefulWidget {
@@ -24,7 +26,16 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
   String _statusMessage = 'Position your face in the frame to check in.';
   String? _matchedUserName;
   late AnimationController _animationController;
-  final ImagePicker _picker = ImagePicker();
+
+  CameraController? _cameraController;
+  bool _isCameraReady = false;
+  List<Face> _faces = [];
+  bool _isProcessingImage = false;
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      performanceMode: FaceDetectorMode.fast,
+    ),
+  );
 
   @override
   void initState() {
@@ -33,44 +44,90 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     );
+    _initCamera();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _cameraController?.dispose();
+    _faceDetector.close();
     super.dispose();
   }
 
-  Future<void> _startScan() async {
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      final frontCamera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      _cameraController = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await _cameraController!.initialize();
+      if (!mounted) return;
+
+      setState(() {
+        _isCameraReady = true;
+      });
+
+      _startImageStream();
+    } catch (e) {
+      debugPrint('Camera init error: $e');
+    }
+  }
+
+  void _startImageStream() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+
+    _cameraController!.startImageStream((image) async {
+      if (_isProcessingImage || _capturedImage != null || _isSuccess) return;
+
+      _isProcessingImage = true;
+      try {
+        final inputImage = CameraUtils.inputImageFromCameraImage(
+          image,
+          _cameraController!.description,
+        );
+
+        if (inputImage != null) {
+          final faces = await _faceDetector.processImage(inputImage);
+          if (mounted) {
+            setState(() {
+              _faces = faces;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Face detection error: $e');
+      } finally {
+        _isProcessingImage = false;
+      }
+    });
+  }
+
+  Future<void> _captureAndMark() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+
     setState(() {
       _isScanning = true;
       _isSuccess = false;
       _matchedUserName = null;
-      _statusMessage = 'Opening camera...';
+      _statusMessage = 'Capturing...';
     });
 
-    final image = await _picker.pickImage(
-      source: ImageSource.camera,
-      preferredCameraDevice: CameraDevice.front,
-      imageQuality: 85,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (image == null) {
-      setState(() {
-        _isScanning = false;
-        _statusMessage = 'Capture cancelled. Try again when you are ready.';
-      });
-      return;
-    }
-
-    _capturedImage = image;
-    _animationController.repeat(reverse: true);
-
     try {
+      final image = await _cameraController!.takePicture();
+      _capturedImage = image;
+      _animationController.repeat(reverse: true);
+
       setState(() {
         _statusMessage = 'Scanning your face... Please hold still.';
       });
@@ -90,9 +147,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
       final user = data['user'] as Map<String, dynamic>?;
       final attendanceMarked = data['attendance_marked'] == true;
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       _animationController.stop();
       setState(() {
@@ -110,27 +165,34 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           ? responseData['detail']?.toString()
           : null;
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         _isScanning = false;
         _isSuccess = false;
-        _statusMessage = detail ?? 'Unable to connect to the attendance server.';
+        _capturedImage = null; // Allow retry
+        _statusMessage = detail ?? 'Unable to connect to server.';
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       _animationController.stop();
       setState(() {
         _isScanning = false;
         _isSuccess = false;
-        _statusMessage = 'Something went wrong while scanning. Please try again.';
+        _capturedImage = null;
+        _statusMessage = 'Something went wrong. Please try again.';
       });
     }
+  }
+
+  void _reset() {
+    setState(() {
+      _capturedImage = null;
+      _isSuccess = false;
+      _isScanning = false;
+      _matchedUserName = null;
+      _statusMessage = 'Position your face in the frame to check in.';
+    });
   }
 
   @override
@@ -152,83 +214,73 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                 'AI Face Recognition Check-in',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
               Center(
                 child: GlassContainer(
-                  width: 280,
-                  height: 380,
+                  width: 320,
+                  height: 400,
                   padding: EdgeInsets.zero,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (_capturedImage != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-                          child: Image.file(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(32),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (_capturedImage != null)
+                          Image.file(
                             File(_capturedImage!.path),
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
-                          ),
-                        )
-                      else if (_isSuccess)
-                        const Icon(
-                          Icons.check_circle,
-                          color: AppColors.success,
-                          size: 100,
-                        )
-                      else
-                        Icon(
-                          Icons.face,
-                          size: 160,
-                          color: AppColors.primaryStart.withOpacity(0.2),
-                        ),
-                      if (_isScanning)
-                        AnimatedBuilder(
-                          animation: _animationController,
-                          builder: (context, child) {
-                            return Positioned(
-                              top: _animationController.value * 360,
-                              child: Container(
-                                width: 280,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.accent.withOpacity(0.5),
-                                      blurRadius: 10,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
+                          )
+                        else if (_isCameraReady)
+                          Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CameraPreview(_cameraController!),
+                              if (_faces.isNotEmpty)
+                                CustomPaint(
+                                  painter: FaceOverlayPainter(
+                                    faces: _faces,
+                                    imageSize: _cameraController!.value.previewSize,
+                                    rotation: _cameraController!.description.sensorOrientation,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-                      if (!_isSuccess) ...[
-                        Positioned(
-                          top: 16,
-                          left: 16,
-                          child: _buildCorner(0),
-                        ),
-                        Positioned(
-                          top: 16,
-                          right: 16,
-                          child: _buildCorner(1),
-                        ),
-                        Positioned(
-                          bottom: 16,
-                          left: 16,
-                          child: _buildCorner(2),
-                        ),
-                        Positioned(
-                          bottom: 16,
-                          right: 16,
-                          child: _buildCorner(3),
-                        ),
+                            ],
+                          )
+                        else if (_isSuccess)
+                          const Icon(
+                            Icons.check_circle,
+                            color: AppColors.success,
+                            size: 100,
+                          )
+                        else
+                          const Center(child: CircularProgressIndicator()),
+                        
+                        if (_isScanning)
+                          AnimatedBuilder(
+                            animation: _animationController,
+                            builder: (context, child) {
+                              return Positioned(
+                                top: _animationController.value * 390,
+                                child: Container(
+                                  width: 320,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.accent.withOpacity(0.5),
+                                        blurRadius: 10,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -250,8 +302,10 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isScanning ? null : _startScan,
-                  child: Text(_isSuccess ? 'Scan Again' : 'Start Scan'),
+                  onPressed: _isScanning
+                      ? null
+                      : (_isSuccess ? _reset : _captureAndMark),
+                  child: Text(_isSuccess ? 'Scan Again' : 'Mark Attendance'),
                 ),
               ),
             ],
@@ -260,31 +314,64 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
       ),
     );
   }
+}
 
-  Widget _buildCorner(int index) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: index < 2 ? AppColors.primaryStart : Colors.transparent,
-            width: 4,
-          ),
-          bottom: BorderSide(
-            color: index >= 2 ? AppColors.primaryStart : Colors.transparent,
-            width: 4,
-          ),
-          left: BorderSide(
-            color: index % 2 == 0 ? AppColors.primaryStart : Colors.transparent,
-            width: 4,
-          ),
-          right: BorderSide(
-            color: index % 2 != 0 ? AppColors.primaryStart : Colors.transparent,
-            width: 4,
-          ),
-        ),
-      ),
+// Reuse the same painter or a slightly adapted one
+class FaceOverlayPainter extends CustomPainter {
+  final List<Face> faces;
+  final Size imageSize;
+  final int rotation;
+
+  FaceOverlayPainter({
+    required this.faces,
+    required this.imageSize,
+    required this.rotation,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..color = AppColors.success;
+
+    for (final face in faces) {
+      final rect = _scaleRect(
+        rect: face.boundingBox,
+        imageSize: imageSize,
+        widgetSize: size,
+        rotation: rotation,
+      );
+      canvas.drawRect(rect, paint);
+    }
+  }
+
+  Rect _scaleRect({
+    required Rect rect,
+    required Size imageSize,
+    required Size widgetSize,
+    required int rotation,
+  }) {
+    double scaleX, scaleY;
+
+    if (rotation == 90 || rotation == 270) {
+      scaleX = widgetSize.width / imageSize.height;
+      scaleY = widgetSize.height / imageSize.width;
+    } else {
+      scaleX = widgetSize.width / imageSize.width;
+      scaleY = widgetSize.height / imageSize.height;
+    }
+
+    return Rect.fromLTRB(
+      rect.left * scaleX,
+      rect.top * scaleY,
+      rect.right * scaleX,
+      rect.bottom * scaleY,
     );
+  }
+
+  @override
+  bool shouldRepaint(FaceOverlayPainter oldDelegate) {
+    return oldDelegate.faces != faces;
   }
 }
