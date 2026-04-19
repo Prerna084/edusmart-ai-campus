@@ -320,7 +320,7 @@ class _AttendanceDashboardScreenState
               ],
             ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,13 +393,13 @@ class _AttendanceDashboardScreenState
                     const SizedBox(height: 10),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: AspectRatio(
-                        aspectRatio: 1.0,
-                        child: Container(
-                          color: Colors.black,
-                          width: double.infinity,
-                          child: _cameraError != null
-                              ? Center(
+                      child: Container(
+                        color: Colors.black,
+                        width: double.infinity,
+                        child: _cameraError != null
+                            ? AspectRatio(
+                                aspectRatio: 1.0,
+                                child: Center(
                                   child: Padding(
                                     padding: const EdgeInsets.all(12),
                                     child: Text(
@@ -408,24 +408,24 @@ class _AttendanceDashboardScreenState
                                       style: const TextStyle(color: Colors.white70),
                                     ),
                                   ),
-                                )
-                              : !_cameraReady || _cameraController == null
-                                  ? const Center(
+                                ),
+                              )
+                            : !_cameraReady || _cameraController == null
+                                ? const AspectRatio(
+                                    aspectRatio: 1.0,
+                                    child: Center(
                                       child: CircularProgressIndicator(
                                         color: AppColors.primaryStart,
                                       ),
-                                    )
-                                  : ClipRect(
-                                      child: FittedBox(
-                                        fit: BoxFit.cover,
-                                        child: SizedBox(
-                                          width: _cameraController!.value.aspectRatio * 100,
-                                          height: 100,
-                                          child: CameraPreview(_cameraController!),
-                                        ),
-                                      ),
                                     ),
-                        ),
+                                  )
+                                : Padding(
+                                    padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+                                    child: AspectRatio(
+                                      aspectRatio: _cameraController!.value.aspectRatio,
+                                      child: CameraPreview(_cameraController!),
+                                    ),
+                                  ),
                       ),
                     ),
                     if (_recentDetections.isNotEmpty) ...[
@@ -468,23 +468,25 @@ class _AttendanceDashboardScreenState
               const SizedBox(height: 24),
 
               // ── Attendance List ──────────────────────────────────────────
-              Expanded(
-                child: attendanceAsync.when(
-                  loading: () => const Center(
+              attendanceAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
                     child: CircularProgressIndicator(
                       color: AppColors.primaryStart,
                     ),
                   ),
-                  error: (err, _) => _ErrorView(
-                    message: err.toString(),
-                    onRetry: () => ref.invalidate(todayAttendanceProvider),
-                  ),
-                  data: (records) {
-                    if (records.isEmpty) {
-                      return _EmptyView(
-                        onRefresh: () => ref.invalidate(todayAttendanceProvider),
-                      );
-                    }
+                ),
+                error: (err, _) => _ErrorView(
+                  message: err.toString(),
+                  onRetry: () => ref.invalidate(todayAttendanceProvider),
+                ),
+                data: (records) {
+                  if (records.isEmpty) {
+                    return _EmptyView(
+                      onRefresh: () => ref.invalidate(todayAttendanceProvider),
+                    );
+                  }
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -524,21 +526,20 @@ class _AttendanceDashboardScreenState
                         const SizedBox(height: 16),
 
                         // ── Records list ───────────────────────────────
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: records.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final record = records[index];
-                              return _AttendanceCard(record: record);
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: records.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final record = records[index];
+                          return _AttendanceCard(record: record);
+                        },
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
             ],
