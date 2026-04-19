@@ -257,7 +257,10 @@ class _ProfileView extends ConsumerWidget {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => const RegisterScreen()),
+                                  builder: (_) => RegisterScreen(
+                                    userId: profile.userId,
+                                    initialName: profile.name,
+                                  )),
                             ),
                           ),
                           const Divider(height: 1, color: AppColors.glassBorder),

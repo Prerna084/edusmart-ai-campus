@@ -16,7 +16,10 @@ import '../widgets/glass_container.dart';
 import 'profile_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
-  const RegisterScreen({super.key});
+  final String? userId;
+  final String? initialName;
+
+  const RegisterScreen({super.key, this.userId, this.initialName});
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
@@ -29,6 +32,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _isLoading = false;
 
   String get _apiBaseUrl => resolveApiBaseUrl();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialName != null) {
+      nameController.text = widget.initialName!;
+    }
+  }
 
   @override
   void dispose() {
@@ -87,6 +98,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final dio = Dio();
       final formData = FormData.fromMap({
         'name': nameController.text.trim(),
+        if (widget.userId != null) 'user_id': widget.userId,
         'file': await MultipartFile.fromFile(
           uploadFile.path,
           filename: 'face.jpg',
@@ -232,9 +244,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: 32),
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
+              readOnly: widget.userId != null,
+              decoration: InputDecoration(
                 labelText: 'Full Name',
-                prefixIcon: Icon(Icons.person_outline),
+                prefixIcon: const Icon(Icons.person_outline),
+                helperText: widget.userId != null ? 'Linked to your System Profile ID' : null,
+                helperStyle: const TextStyle(color: AppColors.primaryStart, fontSize: 11),
               ),
             ),
             const SizedBox(height: 48),

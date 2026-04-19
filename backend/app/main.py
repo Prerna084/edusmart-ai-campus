@@ -251,6 +251,7 @@ def change_password(user_id: int, data: schemas.UpdatePasswordRequest, db: Sessi
 @app.post("/register/")
 async def register_user(
     name: str = Form(...),
+    user_id: Optional[int] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
@@ -281,6 +282,22 @@ async def register_user(
                 f"Received filename: '{file.filename}', content-type: '{file.content_type}'."
             ),
         )
+
+    # ── 0. Linked ID check (High Priority) ──────────────────────────────────
+    if user_id is not None:
+        user_to_update = db.query(User).filter(User.id == user_id).first()
+        if not user_to_update:
+            raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
+        
+        user_to_update.face_encoding = json.dumps(encoding.tolist())
+        db.commit()
+        db.refresh(user_to_update)
+        return {
+            "message": "Face linked to system profile successfully.",
+            "already_existed": True,
+            "user_id": user_to_update.id,
+            "name": user_to_update.name,
+        }
 
     # ── 1. Face-duplicate check ───────────────────────────────────────────────
     existing_users = db.query(User).filter(User.face_encoding != None).all()
