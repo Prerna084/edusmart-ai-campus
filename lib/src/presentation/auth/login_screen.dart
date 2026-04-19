@@ -14,9 +14,9 @@ import '../chatbot/chatbot_screen.dart';
 import '../profile/profile_screen.dart';
 import '../teacher/teacher_dashboard_screen.dart';
 import 'teacher_register_screen.dart';
+import 'teacher_login_screen.dart';
 import 'admin_main_screen.dart';
-
-class LoginScreen extends ConsumerStatefulWidget {
+import 'admin_login_screen.dart';
   const LoginScreen({super.key});
 
   @override
@@ -282,8 +282,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherLoginScreen())),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryStart),
+              child: const Text('Teacher Login'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminLoginScreen())),
-              child: const Text('Enter Admin Console'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryStart),
+                foregroundColor: AppColors.primaryStart,
+              ),
+              child: const Text('Admin Console'),
             ),
           ),
           const SizedBox(height: 16),

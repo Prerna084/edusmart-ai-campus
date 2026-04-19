@@ -1,31 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/network/dio_client.dart';
 import '../widgets/glass_container.dart';
-import 'admin_main_screen.dart';
+import '../profile/profile_provider.dart';
+import '../teacher/teacher_dashboard_screen.dart';
+import '../presentation/auth/admin_main_screen.dart';
 
-/// Admin credentials: set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`.
-/// Defaults are for local development only — change them for production.
-String get _expectedAdminEmail =>
-    dotenv.env['ADMIN_EMAIL']?.trim().isNotEmpty == true
-        ? dotenv.env['ADMIN_EMAIL']!.trim()
-        : 'admin@edusmart.edu';
-
-String get _expectedAdminPassword =>
-    dotenv.env['ADMIN_PASSWORD']?.trim().isNotEmpty == true
-        ? dotenv.env['ADMIN_PASSWORD']!.trim()
-        : 'admin123';
-
-class AdminLoginScreen extends StatefulWidget {
-  const AdminLoginScreen({super.key});
+class TeacherLoginScreen extends ConsumerStatefulWidget {
+  const TeacherLoginScreen({super.key});
 
   @override
-  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
+  ConsumerState<TeacherLoginScreen> createState() => _TeacherLoginScreenState();
 }
 
-class _AdminLoginScreenState extends State<AdminLoginScreen> {
+class _TeacherLoginScreenState extends ConsumerState<TeacherLoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -34,31 +27,68 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter admin email and password.')),
+        const SnackBar(content: Text('Enter faculty email and password.')),
       );
       return;
     }
 
-    if (email != _expectedAdminEmail || password != _expectedAdminPassword) {
+    setState(() => _isLoading = true);
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.post('/auth/login', data: {
+        'email': email,
+        'password': password,
+      });
+
+      final data = response.data;
+      final profileData = data['profile'];
+
+      final userProfile = UserProfile(
+        name: data['name'] ?? '',
+        email: profileData['email'] ?? '',
+        phone: profileData['phone'] ?? '',
+        userId: data['user_id'].toString(),
+        collegeId: profileData['college_id'] ?? '',
+        department: profileData['department'] ?? '',
+        year: profileData['year'] ?? '',
+        batch: profileData['batch'] ?? '',
+        semester: profileData['semester'] ?? '',
+        section: profileData['section'] ?? '',
+        role: data['role'] ?? 'student',
+      );
+
+      await ref.read(profileProvider.notifier).updateProfile(userProfile);
+
+      if (mounted) {
+        if (userProfile.role == 'teacher' || userProfile.role == 'admin') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const TeacherDashboardScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Access denied. This login is for Faculty only.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      String errorMessage = 'Login failed';
+      if (e is DioException && e.response?.data != null) {
+        errorMessage = e.response!.data['detail'] ?? errorMessage;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid administrator credentials.'),
-          backgroundColor: AppColors.error,
-        ),
+        SnackBar(content: Text(errorMessage), backgroundColor: AppColors.error),
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute<void>(builder: (_) => const AdminMainScreen()),
-    );
   }
 
   @override
@@ -75,10 +105,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.admin_panel_settings, size: 64, color: AppColors.primaryStart),
+                    const Icon(Icons.school_rounded, size: 64, color: AppColors.primaryStart),
                     const SizedBox(height: 16),
                     Text(
-                      'Admin Console',
+                      'Faculty Login',
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.bold,
@@ -87,7 +117,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Restricted access for system administrators only.',
+                      'Access your syllabus, classes, and study plans.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
@@ -97,7 +127,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
-                        hintText: 'Admin email',
+                        hintText: 'Faculty email',
                         filled: true,
                         fillColor: AppColors.background.withOpacity(0.5),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
@@ -114,14 +144,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         fillColor: AppColors.background.withOpacity(0.5),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                       ),
-                      onSubmitted: (_) => _submit(),
+                      onSubmitted: (_) => _isLoading ? null : _submit(),
                     ),
                     const SizedBox(height: 28),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _submit,
-                        child: const Text('Admin Login'),
+                        onPressed: _isLoading ? null : _submit,
+                        child: _isLoading 
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Login to Dashboard'),
                       ),
                     ),
                     const SizedBox(height: 12),
