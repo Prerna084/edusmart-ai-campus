@@ -421,9 +421,19 @@ class _AttendanceDashboardScreenState
                                   )
                                 : Padding(
                                     padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-                                    child: AspectRatio(
-                                      aspectRatio: _cameraController!.value.aspectRatio,
-                                      child: CameraPreview(_cameraController!),
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        // The camera package's aspectRatio is width / height.
+                                        // On many devices, this ratio can be inverted depending on rotation logic.
+                                        // We force a vertical-friendly ratio here for the portrait container.
+                                        double ratio = _cameraController!.value.aspectRatio;
+                                        if (ratio > 1.0) ratio = 1.0 / ratio;
+
+                                        return AspectRatio(
+                                          aspectRatio: ratio,
+                                          child: CameraPreview(_cameraController!),
+                                        );
+                                      },
                                     ),
                                   ),
                       ),
