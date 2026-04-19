@@ -383,22 +383,34 @@ class FaceOverlayPainter extends CustomPainter {
   }) {
     double scaleX, scaleY;
 
-    scaleX = widgetSize.width / imageSize.width;
-    scaleY = widgetSize.height / imageSize.height;
+    // ML Kit results are based on the sensor orientation.
+    // If the image is rotated (90/270), we need to swap width and height for scaling.
+    if (rotation == 90 || rotation == 270) {
+      scaleX = widgetSize.width / imageSize.height;
+      scaleY = widgetSize.height / imageSize.width;
+    } else {
+      scaleX = widgetSize.width / imageSize.width;
+      scaleY = widgetSize.height / imageSize.height;
+    }
+
+    final double scaledLeft = rect.left * scaleX;
+    final double scaledRight = rect.right * scaleX;
+    final double scaledTop = rect.top * scaleY;
+    final double scaledBottom = rect.bottom * scaleY;
 
     final double left = isFrontCamera 
-        ? widgetSize.width - (rect.right * scaleX)
-        : rect.left * scaleX;
+        ? widgetSize.width - scaledRight
+        : scaledLeft;
     
     final double right = isFrontCamera
-        ? widgetSize.width - (rect.left * scaleX)
-        : rect.right * scaleX;
+        ? widgetSize.width - scaledLeft
+        : scaledRight;
 
     return Rect.fromLTRB(
       left,
-      rect.top * scaleY,
+      scaledTop,
       right,
-      rect.bottom * scaleY,
+      scaledBottom,
     );
   }
 
