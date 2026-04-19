@@ -175,6 +175,9 @@ def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends
         db.commit()
         
         return {"message": "Student registered successfully", "user_id": new_user.id}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         # Handle specific integrity errors if possible, or generic 500 with more info
@@ -233,6 +236,9 @@ def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends
         db.commit()
         
         return {"message": "Teacher registered successfully", "user_id": new_user.id}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")

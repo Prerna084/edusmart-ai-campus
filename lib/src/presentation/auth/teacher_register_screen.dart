@@ -54,18 +54,28 @@ class _TeacherRegisterScreenState extends ConsumerState<TeacherRegisterScreen> {
         'designation': desig,
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful! Please login.')),
-        );
-        Navigator.pop(context);
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registration successful! Please login.')),
+      );
+      Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: $e')),
-        );
+      if (!mounted) return;
+
+      String errorMessage = e.toString();
+      if (e is dynamic && e.response?.data != null) {
+        final data = e.response.data;
+        if (data is Map && data.containsKey('detail')) {
+          errorMessage = data['detail'].toString();
+          // Clean up "Registration failed: 400: " prefix if present
+          errorMessage = errorMessage.replaceFirst(RegExp(r'Registration failed: \d+: '), '');
+        }
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registration failed: $errorMessage')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
