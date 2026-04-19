@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/network/dio_client.dart';
+import 'package:dio/dio.dart';
 import '../profile/profile_provider.dart';
 import 'admin_login_screen.dart';
 import 'student_register_screen.dart';
@@ -90,11 +91,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: $e')),
-        );
+      if (!mounted) return;
+      
+      String errorMessage = e.toString();
+      if (e is DioException && e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map && data.containsKey('detail')) {
+          errorMessage = data['detail'].toString();
+        }
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login failed: $errorMessage')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

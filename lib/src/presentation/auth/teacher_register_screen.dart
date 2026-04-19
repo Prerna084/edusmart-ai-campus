@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/network/dio_client.dart';
+import 'package:dio/dio.dart';
 
 class TeacherRegisterScreen extends ConsumerStatefulWidget {
   const TeacherRegisterScreen({super.key});
@@ -64,8 +65,8 @@ class _TeacherRegisterScreenState extends ConsumerState<TeacherRegisterScreen> {
       if (!mounted) return;
 
       String errorMessage = e.toString();
-      if (e is dynamic && e.response?.data != null) {
-        final data = e.response.data;
+      if (e is DioException && e.response?.data != null) {
+        final data = e.response!.data;
         if (data is Map && data.containsKey('detail')) {
           errorMessage = data['detail'].toString();
           // Clean up "Registration failed: 400: " prefix if present
