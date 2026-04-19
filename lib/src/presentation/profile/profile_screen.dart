@@ -9,6 +9,7 @@ import '../attendance/student_attendance_screen.dart';
 import '../widgets/glass_container.dart';
 import 'profile_provider.dart';
 import 'register_screen.dart';
+import '../auth/login_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Profile Screen
@@ -362,7 +363,10 @@ class _ProfileView extends ConsumerWidget {
               Navigator.pop(ctx);
               await ref.read(profileProvider.notifier).clearProfile();
               if (context.mounted) {
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+                  (_) => false,
+                );
               }
             },
             child: const Text('Log Out',
