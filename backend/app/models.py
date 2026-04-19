@@ -9,7 +9,7 @@ class User(Base):
     name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
     password_hash = Column(String, nullable=True)
-    face_encoding = Column(String)  # Stored as JSON string
+    face_encoding = Column(String, nullable=True)  # Stored as JSON string
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 class Attendance(Base):

@@ -15,69 +15,62 @@ from fastapi.middleware.cors import CORSMiddleware
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
-# Auto-upgrade SQLite / Postgres tables for ScheduledTest
+# Auto-upgrade SQLite / Postgres tables for all models
 from sqlalchemy import text
 with engine.connect() as conn:
-    try:
-        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN time_limit_minutes INTEGER DEFAULT 15"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN valid_until TIMESTAMP"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN max_attempts INTEGER DEFAULT 1"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN num_questions INTEGER DEFAULT 5"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE scheduled_tests ADD COLUMN difficulty VARCHAR DEFAULT 'Mixed Mode'"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE test_results ADD COLUMN questions_data TEXT"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE test_results ADD COLUMN user_answers_data TEXT"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE test_results ADD COLUMN teacher_feedback TEXT"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN semester VARCHAR"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN batch VARCHAR"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN section VARCHAR"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN college_id VARCHAR UNIQUE"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR UNIQUE"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR"))
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR"))
-    except Exception:
-        pass
+    # Users table upgrades
+    for col in [
+        ("email", "VARCHAR UNIQUE"),
+        ("password_hash", "VARCHAR"),
+        ("name", "VARCHAR"),
+        ("face_encoding", "TEXT"), # Support longer encoding strings if needed
+        ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE users ADD COLUMN {col[0]} {col[1]}"))
+        except Exception:
+            pass
+            
+    # Student Profile upgrades
+    for col in [
+        ("email", "VARCHAR"),
+        ("phone", "VARCHAR"),
+        ("department", "VARCHAR"),
+        ("year", "VARCHAR"),
+        ("semester", "VARCHAR"),
+        ("batch", "VARCHAR"),
+        ("section", "VARCHAR"),
+        ("college_id", "VARCHAR UNIQUE")
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE student_profiles ADD COLUMN {col[0]} {col[1]}"))
+        except Exception:
+            pass
+
+    # Scheduled Test upgrades
+    for col in [
+        ("time_limit_minutes", "INTEGER DEFAULT 15"),
+        ("valid_until", "TIMESTAMP"),
+        ("max_attempts", "INTEGER DEFAULT 1"),
+        ("num_questions", "INTEGER DEFAULT 5"),
+        ("difficulty", "VARCHAR DEFAULT 'Mixed Mode'")
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE scheduled_tests ADD COLUMN {col[0]} {col[1]}"))
+        except Exception:
+            pass
+
+    # Test Results upgrades
+    for col in [
+        ("questions_data", "TEXT"),
+        ("user_answers_data", "TEXT"),
+        ("teacher_feedback", "TEXT")
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE test_results ADD COLUMN {col[0]} {col[1]}"))
+        except Exception:
+            pass
+
     try:
         conn.commit()
     except Exception:
@@ -130,33 +123,40 @@ def get_db():
 @app.post("/auth/register")
 def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends(get_db)):
     # Check if email exists
-    existing = db.query(User).filter(User.email == data.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create user
-    # In a real app we'd hash the password properly using passlib/bcrypt
-    new_user = User(
-        name=data.name,
-        email=data.email,
-        password_hash=data.password # Mock hashing for simplicity
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    # Create profile
-    profile = StudentProfile(
-        user_id=new_user.id,
-        email=data.email,
-        batch=data.batch,
-        semester=data.semester,
-        section=data.section
-    )
-    db.add(profile)
-    db.commit()
-    
-    return {"message": "Student registered successfully", "user_id": new_user.id}
+    try:
+        existing = db.query(User).filter(User.email == data.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create user
+        new_user = User(
+            name=data.name,
+            email=data.email,
+            password_hash=data.password # Mock hashing for simplicity
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Create profile
+        profile = StudentProfile(
+            user_id=new_user.id,
+            email=data.email,
+            batch=data.batch,
+            semester=data.semester,
+            section=data.section
+        )
+        db.add(profile)
+        db.commit()
+        
+        return {"message": "Student registered successfully", "user_id": new_user.id}
+    except Exception as e:
+        db.rollback()
+        # Handle specific integrity errors if possible, or generic 500 with more info
+        if "UNIQUE constraint failed" in str(e) or "duplicate key" in str(e):
+             raise HTTPException(status_code=400, detail="Email or College ID already exists")
+        print(f"Error during registration: {e}")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 @app.post("/auth/login")
 def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
@@ -274,7 +274,7 @@ async def register_user(
         )
 
     # ── 1. Face-duplicate check ───────────────────────────────────────────────
-    existing_users = db.query(User).all()
+    existing_users = db.query(User).filter(User.face_encoding != None).all()
     if existing_users:
         known_encodings = [np.array(json.loads(u.face_encoding)) for u in existing_users]
         matched = find_best_match(known_encodings, encoding, tolerance=0.5)
@@ -421,9 +421,9 @@ async def mark_attendance(
             ),
         )
 
-    users = db.query(User).all()
+    users = db.query(User).filter(User.face_encoding != None).all()
     if not users:
-        raise HTTPException(status_code=404, detail="No registered users found.")
+        raise HTTPException(status_code=404, detail="No registered users with face data found.")
 
     known_encodings = [np.array(json.loads(user.face_encoding)) for user in users]
     matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
@@ -495,9 +495,9 @@ async def recognize_face(
             ),
         )
 
-    users = db.query(User).all()
+    users = db.query(User).filter(User.face_encoding != None).all()
     if not users:
-        raise HTTPException(status_code=404, detail="No registered users found.")
+        raise HTTPException(status_code=404, detail="No registered users with face data found.")
 
     known_encodings = [np.array(json.loads(user.face_encoding)) for user in users]
     matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
