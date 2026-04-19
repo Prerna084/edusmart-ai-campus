@@ -239,9 +239,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                               CameraPreview(_cameraController!),
                               if (_faces.isNotEmpty)
                                 CustomPaint(
-                                  painter: FaceOverlayPainter(
+                                    painter: FaceOverlayPainter(
                                     faces: _faces,
-                                    imageSize: _cameraController!.value.previewSize,
+                                    imageSize: _cameraController!.value.previewSize!,
                                     rotation: _cameraController!.description.sensorOrientation,
                                   ),
                                 ),

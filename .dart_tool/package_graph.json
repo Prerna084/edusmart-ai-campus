@@ -21,6 +21,7 @@
         "freezed_annotation",
         "google_fonts",
         "google_generative_ai",
+        "google_mlkit_face_detection",
         "http",
         "image_picker",
         "intl",
@@ -132,6 +133,14 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "google_mlkit_face_detection",
+      "version": "0.13.2",
+      "dependencies": [
+        "flutter",
+        "google_mlkit_commons"
       ]
     },
     {
@@ -723,6 +732,13 @@
         "stream_channel",
         "string_scanner",
         "term_glyph"
+      ]
+    },
+    {
+      "name": "google_mlkit_commons",
+      "version": "0.11.1",
+      "dependencies": [
+        "flutter"
       ]
     },
     {

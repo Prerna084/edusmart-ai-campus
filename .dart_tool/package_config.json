@@ -398,6 +398,18 @@
       "languageVersion": "3.1"
     },
     {
+      "name": "google_mlkit_commons",
+      "rootUri": "file:///Users/biswanathbarik/.pub-cache/hosted/pub.dev/google_mlkit_commons-0.11.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "google_mlkit_face_detection",
+      "rootUri": "file:///Users/biswanathbarik/.pub-cache/hosted/pub.dev/google_mlkit_face_detection-0.13.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
       "name": "graphs",
       "rootUri": "file:///Users/biswanathbarik/.pub-cache/hosted/pub.dev/graphs-2.3.2",
       "packageUri": "lib/",
