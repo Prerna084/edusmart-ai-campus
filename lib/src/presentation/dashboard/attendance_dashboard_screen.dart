@@ -50,6 +50,10 @@ class _AttendanceDashboardScreenState
   String _scanStatus = 'Idle';
   final Set<int> _sessionMarkedStudentIds = <int>{};
   final List<String> _recentDetections = <String>[];
+  
+  // Camera Switching
+  List<CameraDescription> _availableCameras = [];
+  int _selectedCameraIndex = 0;
 
   @override
   void initState() {
@@ -66,27 +70,42 @@ class _AttendanceDashboardScreenState
 
   Future<void> _initCamera() async {
     try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        setState(() {
-          _cameraError = 'No camera available on this device.';
-        });
+      if (_availableCameras.isEmpty) {
+        _availableCameras = await availableCameras();
+      }
+
+      if (_availableCameras.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _cameraError = 'No camera available on this device.';
+          });
+        }
         return;
       }
-      final selected = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
+
+      // If initializing for the first time, try to find front camera
+      if (_cameraController == null && _selectedCameraIndex == 0) {
+        final frontIdx = _availableCameras.indexWhere(
+          (c) => c.lensDirection == CameraLensDirection.front,
+        );
+        if (frontIdx != -1) {
+          _selectedCameraIndex = frontIdx;
+        }
+      }
+
       final controller = CameraController(
-        selected,
+        _availableCameras[_selectedCameraIndex],
         ResolutionPreset.medium,
         enableAudio: false,
       );
+
       await controller.initialize();
+      
       if (!mounted) {
         await controller.dispose();
         return;
       }
+
       setState(() {
         _cameraController = controller;
         _cameraReady = true;
@@ -99,6 +118,30 @@ class _AttendanceDashboardScreenState
         _cameraError = 'Camera init failed: $e';
         _scanStatus = 'Camera unavailable';
       });
+    }
+  }
+
+  Future<void> _toggleCamera() async {
+    if (_availableCameras.length < 2) return;
+
+    final wasAutoScanning = _isAutoScanning;
+    if (wasAutoScanning) {
+      _stopAutoScan();
+    }
+
+    setState(() {
+      _cameraReady = false;
+      _scanStatus = 'Switching camera...';
+    });
+
+    await _cameraController?.dispose();
+    _cameraController = null;
+
+    _selectedCameraIndex = (_selectedCameraIndex + 1) % _availableCameras.length;
+    await _initCamera();
+
+    if (wasAutoScanning && _cameraReady) {
+      _startAutoScan();
     }
   }
 
@@ -300,6 +343,13 @@ class _AttendanceDashboardScreenState
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
+                        if (_availableCameras.length > 1)
+                          IconButton(
+                            icon: const Icon(Icons.flip_camera_ios_outlined, size: 20),
+                            onPressed: _cameraReady ? _toggleCamera : null,
+                            tooltip: 'Switch Camera',
+                            color: AppColors.primaryStart,
+                          ),
                         Switch(
                           value: _isAutoScanning,
                           onChanged: (enabled) {
