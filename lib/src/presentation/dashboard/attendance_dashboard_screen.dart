@@ -226,9 +226,15 @@ class _AttendanceDashboardScreenState
         });
       }
 
+      // Briefly stop image stream to allow high-res capture without hardware conflict
+      await _cameraController!.stopImageStream();
+
       final image = await _cameraController!.takePicture();
       final imagePath = image.path;
       final imageName = image.name;
+
+      // Immediately restart image stream for live tracking
+      _startImageStream();
 
       final dio = ref.read(dioProvider);
 

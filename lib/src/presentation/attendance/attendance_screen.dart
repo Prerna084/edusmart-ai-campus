@@ -130,8 +130,14 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     });
 
     try {
+      // Pause image stream to allow high-res capture without hardware conflict
+      await _cameraController!.stopImageStream();
+
       final image = await _cameraController!.takePicture();
       _capturedImage = image;
+
+      // The ImageStream is not restarted here because we show the captured photo 
+      // instead of the live preview once _capturedImage is set.
       _animationController.repeat(reverse: true);
 
       setState(() {
