@@ -72,6 +72,14 @@ class _AttendanceDashboardScreenState
     try {
       if (_availableCameras.isEmpty) {
         _availableCameras = await availableCameras();
+        
+        // On very first run, try to default to the FRONT camera
+        final frontIdx = _availableCameras.indexWhere(
+          (c) => c.lensDirection == CameraLensDirection.front,
+        );
+        if (frontIdx != -1) {
+          _selectedCameraIndex = frontIdx;
+        }
       }
 
       if (_availableCameras.isEmpty) {
@@ -81,16 +89,6 @@ class _AttendanceDashboardScreenState
           });
         }
         return;
-      }
-
-      // If initializing for the first time, try to find front camera
-      if (_cameraController == null && _selectedCameraIndex == 0) {
-        final frontIdx = _availableCameras.indexWhere(
-          (c) => c.lensDirection == CameraLensDirection.front,
-        );
-        if (frontIdx != -1) {
-          _selectedCameraIndex = frontIdx;
-        }
       }
 
       final controller = CameraController(
