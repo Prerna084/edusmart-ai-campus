@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../dashboard/attendance_dashboard_screen.dart';
+import '../dashboard/attendance_history_screen.dart';
 import '../dashboard/student_list_screen.dart';
 import '../dashboard/admin_assessments_screen.dart';
 import 'login_screen.dart';
@@ -23,7 +24,7 @@ class _AdminMainScreenState extends State<AdminMainScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -67,6 +68,10 @@ class _AdminMainScreenState extends State<AdminMainScreen>
               text: 'Attendance',
             ),
             Tab(
+              icon: Icon(Icons.how_to_reg_rounded),
+              text: 'Check-ins',
+            ),
+            Tab(
               icon: Icon(Icons.people_alt_rounded),
               text: 'Students',
             ),
@@ -86,10 +91,13 @@ class _AdminMainScreenState extends State<AdminMainScreen>
             onAdminLogout: null, // logout is handled by parent AppBar
           ),
 
-          // Tab 1 — Registered student list
+          // Tab 1 — New! Today's Check-ins dedicated tab
+          const AttendanceHistoryScreen(),
+
+          // Tab 2 — Registered student list
           const StudentListScreen(),
 
-          // Tab 2 — Admin Assessments and results
+          // Tab 3 — Admin Assessments and results
           const AdminAssessmentsScreen(),
         ],
       ),
