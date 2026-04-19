@@ -17,8 +17,10 @@ Base.metadata.create_all(bind=engine)
 
 # Auto-upgrade SQLite / Postgres tables for all models
 from sqlalchemy import text
+print("🛠️ Starting database auto-migration...")
 with engine.connect() as conn:
     is_postgres = "postgresql" in str(engine.url)
+    print(f"📡 Detected database type: {'PostgreSQL' if is_postgres else 'SQLite/Other'}")
     
     def safe_add_column(table, col_name, col_type):
         """Cross-database column addition helper."""
@@ -30,12 +32,14 @@ with engine.connect() as conn:
                 # SQLite: fails if already exists, which we catch
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
             conn.commit()
-        except Exception:
+            print(f"✅ Added {table}.{col_name} ({col_type})")
+        except Exception as e:
             # If postgres transaction is aborted, we must rollback to continue
             try:
                 conn.rollback()
             except:
                 pass
+            print(f"ℹ️ Skipped {table}.{col_name}: {str(e)[:50]}...")
             pass
 
     # --- Users table ---
@@ -78,6 +82,7 @@ with engine.connect() as conn:
         ("teacher_feedback", "TEXT")
     ]:
         safe_add_column("test_results", col, ctype)
+print("✅ Database auto-migration complete.")
 def _auto_seed_syllabus():
     """Seed syllabus data if the subjects table is empty."""
     db = SessionLocal()
