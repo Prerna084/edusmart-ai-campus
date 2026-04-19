@@ -6,7 +6,8 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    email = Column(String, unique=True, index=True, nullable=True)
+    password_hash = Column(String, nullable=True)
     face_encoding = Column(String)  # Stored as JSON string
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -35,6 +36,8 @@ class StudentProfile(Base):
     year = Column(String, nullable=True)
     semester = Column(String, nullable=True)
     batch = Column(String, nullable=True)
+    section = Column(String, nullable=True)
+    college_id = Column(String, unique=True, nullable=True)
 
 
 # ── Syllabus System ─────────────────────────────────────────────────────────

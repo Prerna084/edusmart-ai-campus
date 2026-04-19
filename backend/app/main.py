@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
 from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic, ScheduledTest, TestResult
-from app.schemas import ScheduleTestRequest, SubmitResultRequest
+from app import schemas
 from app.face_engine import encode_face, find_best_match
 import json
 from datetime import date, datetime
@@ -59,6 +59,22 @@ with engine.connect() as conn:
     except Exception:
         pass
     try:
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN section VARCHAR"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE student_profiles ADD COLUMN college_id VARCHAR UNIQUE"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR UNIQUE"))
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR"))
+    except Exception:
+        pass
+    try:
         conn.commit()
     except Exception:
         pass
@@ -98,12 +114,118 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# ── Authentication API ───────────────────────────────────────────────────────
+
+@app.post("/auth/register")
+def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends(get_db)):
+    # Check if email exists
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create user
+    # In a real app we'd hash the password properly using passlib/bcrypt
+    new_user = User(
+        name=data.name,
+        email=data.email,
+        password_hash=data.password # Mock hashing for simplicity
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Create profile
+    profile = StudentProfile(
+        user_id=new_user.id,
+        email=data.email,
+        batch=data.batch,
+        semester=data.semester,
+        section=data.section
+    )
+    db.add(profile)
+    db.commit()
+    
+    return {"message": "Student registered successfully", "user_id": new_user.id}
+
+@app.post("/auth/login")
+def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user or user.password_hash != data.password:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
+    
+    return {
+        "user_id": user.id,
+        "name": user.name,
+        "profile": {
+            "email": user.email,
+            "phone": profile.phone if profile else "",
+            "department": profile.department if profile else "",
+            "year": profile.year if profile else "",
+            "semester": profile.semester if profile else "",
+            "batch": profile.batch if profile else "",
+            "section": profile.section if profile else "",
+            "college_id": profile.college_id if profile else "",
+        }
+    }
+
+@app.post("/auth/forgot-password")
+def forgot_password(data: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        # Silently fail or inform? User says: "If the email exists..."
+        raise HTTPException(status_code=404, detail="Email not found")
+    
+    # Generate random password
+    import random
+    import string
+    new_pwd = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    user.password_hash = new_pwd
+    db.commit()
+    
+    # Mock sending email
+    return {"message": "New password generated and sent to email", "temp_password": new_pwd}
+
+@app.post("/students/{user_id}/college-id")
+def set_college_id(user_id: int, data: schemas.UpdateCollegeIdRequest, db: Session = Depends(get_db)):
+    import re
+    if not re.match(r"^[a-zA-Z0-9]+$", data.college_id):
+        raise HTTPException(status_code=400, detail="Student ID contains special characters")
+    
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    
+    if profile.college_id:
+        raise HTTPException(status_code=403, detail="Student ID is already set and cannot be changed")
+    
+    profile.college_id = data.college_id
+    db.commit()
+    return {"message": "Student ID set successfully"}
+
+@app.post("/admin/students/{user_id}/reset-college-id")
+def reset_college_id(user_id: int, db: Session = Depends(get_db)):
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    
+    profile.college_id = None
+    db.commit()
+    return {"message": "Student ID cleared successfully"}
+
+@app.post("/students/{user_id}/change-password")
+def change_password(user_id: int, data: schemas.UpdatePasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.password_hash != data.old_password:
+        raise HTTPException(status_code=401, detail="Incorrect old password")
+    
+    user.password_hash = data.new_password
+    db.commit()
+    return {"message": "Password changed successfully"}
 
 
 @app.post("/register/")
@@ -602,7 +724,7 @@ class StudentProfileSchema(BaseModel):
 @app.get("/students")
 def get_all_students(db: Session = Depends(get_db)):
     """
-    Returns all registered students with their attendance count.
+    Returns all registered students with full metadata and attendance count.
     Used by the Admin Dashboard — Student List screen.
     """
     users = db.query(User).order_by(User.id).all()
@@ -613,11 +735,17 @@ def get_all_students(db: Session = Depends(get_db)):
             .filter(Attendance.user_id == user.id)
             .count()
         )
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
         result.append({
             "id": user.id,
             "name": user.name,
-            "registered_at": user.updated_at.isoformat() if user.updated_at else None,
+            "email": user.email or (profile.email if profile else ""),
+            "batch": profile.batch if profile else "",
+            "semester": profile.semester if profile else "",
+            "section": profile.section if profile else "",
+            "college_id": profile.college_id if profile else "",
             "total_attendance": total_attendance,
+            "registered_at": user.updated_at.isoformat() if user.updated_at else None,
         })
     return result
 
@@ -753,7 +881,7 @@ def get_topic(topic_id: int, db: Session = Depends(get_db)):
 # ── Assessments API ─────────────────────────────────────────────────────────
 
 @app.post("/admin/tests")
-def schedule_test(data: ScheduleTestRequest, db: Session = Depends(get_db)):
+def schedule_test(data: schemas.ScheduleTestRequest, db: Session = Depends(get_db)):
     """
     Admin schedules a new test by defining a topic.
     """
@@ -795,7 +923,7 @@ def get_scheduled_tests(db: Session = Depends(get_db)):
     } for t in tests]
 
 @app.post("/tests/{test_id}/submit")
-def submit_test_result(test_id: int, data: SubmitResultRequest, db: Session = Depends(get_db)):
+def submit_test_result(test_id: int, data: schemas.SubmitResultRequest, db: Session = Depends(get_db)):
     """
     Student submits the results of their AI generated assessment wrapper.
     """

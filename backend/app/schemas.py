@@ -38,3 +38,25 @@ class SubmitResultRequest(BaseModel):
     total_questions: int
     questions_data: Optional[str] = None
     user_answers_data: Optional[str] = None
+
+class StudentRegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    batch: Optional[str] = None
+    semester: Optional[str] = None
+    section: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class UpdateCollegeIdRequest(BaseModel):
+    college_id: str
+
+class UpdatePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str

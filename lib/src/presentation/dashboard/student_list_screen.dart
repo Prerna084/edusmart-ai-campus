@@ -90,7 +90,7 @@ class StudentListScreen extends ConsumerWidget {
                               ),
                             ),
                             const Text(
-                              'Enrolled via Face Recognition',
+                              'Full academic metadata monitoring',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -114,8 +114,8 @@ class StudentListScreen extends ConsumerWidget {
                       final student = students[index];
                       return _StudentCard(
                         student: student,
-                        onDelete: () =>
-                            _confirmDelete(context, ref, student),
+                        onDelete: () => _confirmDelete(context, ref, student),
+                        onResetId: () => _confirmResetId(context, ref, student),
                       );
                     },
                   ),
@@ -141,24 +141,12 @@ class StudentListScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Delete Student?',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: Text(
-          'This will permanently remove "$name" and all their attendance records.',
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
+        title: const Text('Delete Student?', style: TextStyle(color: AppColors.textPrimary)),
+        content: Text('This will permanently remove "$name" and all their data.', style: const TextStyle(color: AppColors.textSecondary)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -171,23 +159,45 @@ class StudentListScreen extends ConsumerWidget {
         final dio = ref.read(dioProvider);
         await dio.delete<dynamic>('/students/$id');
         ref.invalidate(studentListProvider);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('"$name" removed successfully.'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-        }
       } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error deleting student: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting: $e')));
+      }
+    }
+  }
+
+  Future<void> _confirmResetId(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> student,
+  ) async {
+    final id = student['id'];
+    final name = student['name'];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Reset College ID?', style: TextStyle(color: AppColors.textPrimary)),
+        content: Text('This will clear the College ID for "$name", allowing them to set a new one.', style: const TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset ID'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final dio = ref.read(dioProvider);
+        await dio.post('/admin/students/$id/reset-college-id');
+        ref.invalidate(studentListProvider);
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('College ID cleared successfully.')));
+      } catch (e) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error resetting: $e')));
       }
     }
   }
@@ -199,111 +209,84 @@ class StudentListScreen extends ConsumerWidget {
 class _StudentCard extends StatelessWidget {
   final Map<String, dynamic> student;
   final VoidCallback onDelete;
+  final VoidCallback onResetId;
 
-  const _StudentCard({required this.student, required this.onDelete});
+  const _StudentCard({required this.student, required this.onDelete, required this.onResetId});
 
   @override
   Widget build(BuildContext context) {
     final name = student['name']?.toString() ?? 'Unknown';
+    final email = student['email']?.toString() ?? 'No Email';
+    final collegeId = student['college_id']?.toString() ?? 'Not Set';
+    final batch = student['batch']?.toString() ?? '—';
+    final sem = student['semester']?.toString() ?? '—';
+    final sec = student['section']?.toString() ?? '—';
     final totalAttendance = student['total_attendance'] ?? 0;
-    final registeredAt = student['registered_at']?.toString();
 
-    final initials = name
-        .trim()
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
-
-    final formattedDate = _formatDate(registeredAt);
+    final initials = name.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join();
 
     return GlassContainer(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+      padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
-          // ── Avatar ──────────────────────────────────────────────────────
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: AppColors.primaryStart.withOpacity(0.15),
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: AppColors.primaryStart,
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primaryStart.withOpacity(0.1),
+                child: Text(initials, style: const TextStyle(color: AppColors.primaryStart, fontWeight: FontWeight.bold)),
               ),
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // ── Info ─────────────────────────────────────────────────────────
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 13, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Joined $formattedDate',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16)),
+                    Text(email, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      child: Text('College ID: $collegeId', style: const TextStyle(color: AppColors.primaryStart, fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-
-          // ── Attendance badge ──────────────────────────────────────────────
-          Column(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$totalAttendance days',
-                  style: const TextStyle(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
               ),
-              const SizedBox(height: 6),
-              // ── Delete button ─────────────────────────────────────────────
-              GestureDetector(
-                onTap: onDelete,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(20),
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: AppColors.success.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                    child: Text('$totalAttendance days', style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 11)),
                   ),
-                  child: const Text(
-                    'Remove',
-                    style: TextStyle(
-                      color: AppColors.error,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                  const SizedBox(height: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+                    onPressed: onDelete,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const Divider(height: 24, color: AppColors.glassBorder),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _metaChip('Batch', batch),
+              _metaChip('Semester', sem),
+              _metaChip('Section', sec),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onResetId,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(border: Border.all(color: AppColors.primaryStart.withOpacity(0.3)), borderRadius: BorderRadius.circular(8)),
+                    child: const Text('Reset ID', style: TextStyle(color: AppColors.primaryStart, fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -314,18 +297,14 @@ class _StudentCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(String? isoDate) {
-    if (isoDate == null) return 'Unknown';
-    try {
-      final dt = DateTime.parse(isoDate);
-      const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ];
-      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-    } catch (_) {
-      return isoDate;
-    }
+  Widget _metaChip(String label, String val) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        Text(val, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 12)),
+      ],
+    );
   }
 }
 
@@ -335,9 +314,7 @@ class _StudentCard extends StatelessWidget {
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-
   const _ErrorView({required this.message, required this.onRetry});
-
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -346,27 +323,14 @@ class _ErrorView extends StatelessWidget {
         children: [
           const Icon(Icons.cloud_off, size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
-          const Text(
-            'Could not load student list.',
-            style: TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-          ),
+          const Text('Could not load student list.', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              message,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
+            child: Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), textAlign: TextAlign.center),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-          ),
+          ElevatedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Retry')),
         ],
       ),
     );
@@ -378,43 +342,21 @@ class _ErrorView extends StatelessWidget {
 // ---------------------------------------------------------------------------
 class _EmptyView extends StatelessWidget {
   final VoidCallback onRefresh;
-
   const _EmptyView({required this.onRefresh});
-
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.person_off_rounded,
-            size: 80,
-            color: AppColors.primaryStart.withOpacity(0.3),
-          ),
+          Icon(Icons.person_off_rounded, size: 80, color: AppColors.primaryStart.withOpacity(0.3)),
           const SizedBox(height: 16),
-          const Text(
-            'No students registered yet.',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Students register via face recognition\nfrom the home screen.',
-            style: TextStyle(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
-          ),
+          const Text('No students registered yet.', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh'),
-          ),
+          OutlinedButton.icon(onPressed: onRefresh, icon: const Icon(Icons.refresh), label: const Text('Refresh')),
         ],
       ),
     );
   }
 }
+

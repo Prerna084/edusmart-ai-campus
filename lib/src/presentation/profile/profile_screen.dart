@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/network/dio_client.dart';
 import '../attendance/student_attendance_screen.dart';
 import '../widgets/glass_container.dart';
 import 'profile_provider.dart';
@@ -127,7 +128,7 @@ class _ProfileView extends ConsumerWidget {
                           color: AppColors.textSecondary, fontSize: 13),
                     ),
                     const SizedBox(height: 12),
-                    // ── Student ID chip ────────────────────────────────────
+                    // ── User ID chip (System Internal) ─────────────────────
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 6),
@@ -136,11 +137,11 @@ class _ProfileView extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        profile.studentId,
+                        'SYS-ID: ${profile.userId}',
                         style: const TextStyle(
                           color: AppColors.primaryStart,
                           fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                          fontSize: 10,
                         ),
                       ),
                     ),
@@ -173,19 +174,28 @@ class _ProfileView extends ConsumerWidget {
                           _InfoTile(
                             icon: Icons.school_outlined,
                             label: 'Department',
-                            value: profile.department,
+                            value: profile.department.isEmpty ? 'Not set' : profile.department,
+                            valueMuted: profile.department.isEmpty,
                           ),
                           const Divider(height: 1, color: AppColors.glassBorder),
                           _InfoTile(
                             icon: Icons.grade_outlined,
                             label: 'Year',
-                            value: profile.year,
+                            value: profile.year.isEmpty ? 'Not set' : profile.year,
+                            valueMuted: profile.year.isEmpty,
                           ),
                           const Divider(height: 1, color: AppColors.glassBorder),
                           _InfoTile(
                             icon: Icons.badge_outlined,
-                            label: 'Student ID',
-                            value: profile.studentId,
+                            label: 'College ID',
+                            value: profile.collegeId.isEmpty ? 'Enter ID' : profile.collegeId,
+                            valueMuted: profile.collegeId.isEmpty,
+                            trailing: profile.collegeId.isEmpty 
+                              ? IconButton(
+                                  icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryStart, size: 20),
+                                  onPressed: () => _showCollegeIdInputDialog(context, ref),
+                                )
+                              : const Icon(Icons.lock_outline, color: AppColors.textMuted, size: 16),
                           ),
                           const Divider(height: 1, color: AppColors.glassBorder),
                           _InfoTile(
@@ -200,6 +210,13 @@ class _ProfileView extends ConsumerWidget {
                             label: 'Batch',
                             value: profile.batch.isEmpty ? 'Not set' : profile.batch,
                             valueMuted: profile.batch.isEmpty,
+                          ),
+                          const Divider(height: 1, color: AppColors.glassBorder),
+                          _InfoTile(
+                            icon: Icons.layers_outlined,
+                            label: 'Section',
+                            value: profile.section.isEmpty ? 'Not set' : profile.section,
+                            valueMuted: profile.section.isEmpty,
                           ),
                         ],
                       ),
@@ -256,7 +273,7 @@ class _ProfileView extends ConsumerWidget {
                           _ActionTile(
                             icon: Icons.lock_outline,
                             label: 'Change Password',
-                            onTap: () => _showComingSoon(context, 'Change Password'),
+                            onTap: () => _showChangePasswordDialog(context, ref),
                           ),
                           const Divider(height: 1, color: AppColors.glassBorder),
                           _ActionTile(
@@ -273,7 +290,7 @@ class _ProfileView extends ConsumerWidget {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () => _confirmLogout(context),
+                        onPressed: () => _confirmLogout(context, ref),
                         icon: const Icon(Icons.logout, color: AppColors.error),
                         label: const Text('Log Out',
                             style: TextStyle(color: AppColors.error)),
@@ -325,7 +342,7 @@ class _ProfileView extends ConsumerWidget {
     );
   }
 
-  void _confirmLogout(BuildContext context) {
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -341,14 +358,122 @@ class _ProfileView extends ConsumerWidget {
                 style: TextStyle(color: AppColors.textSecondary)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              // Navigate back to login — pop all routes
-              Navigator.of(context)
-                  .popUntil((route) => route.isFirst);
+              await ref.read(profileProvider.notifier).clearProfile();
+              if (context.mounted) {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
             },
             child: const Text('Log Out',
                 style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCollegeIdInputDialog(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Set College ID', style: TextStyle(color: AppColors.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter your unique College Student ID. Once set, it cannot be changed without admin approval.', 
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'e.g. CS2024001',
+                hintStyle: TextStyle(color: AppColors.textMuted),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final val = controller.text.trim();
+              if (val.isEmpty) return;
+              try {
+                await ref.read(profileProvider.notifier).setCollegeId(val);
+                if (context.mounted) Navigator.pop(context);
+              } catch (e) {
+                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: const Text('Set ID'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangePasswordDialog(BuildContext context, WidgetRef ref) {
+    final oldPass = TextEditingController();
+    final newPass = TextEditingController();
+    final confirmPass = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: oldPass,
+              obscureText: true,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(labelText: 'Old Password'),
+            ),
+            TextField(
+              controller: newPass,
+              obscureText: true,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(labelText: 'New Password'),
+            ),
+            TextField(
+              controller: confirmPass,
+              obscureText: true,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(labelText: 'Confirm New Password'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (newPass.text != confirmPass.text) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+                return;
+              }
+              try {
+                final userId = ref.read(profileProvider).value?.userId;
+                final dio = ref.read(dioProvider);
+                await dio.post('/students/$userId/change-password', data: {
+                  'old_password': oldPass.text,
+                  'new_password': newPass.text,
+                });
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password updated successfully')));
+                }
+              } catch (e) {
+                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: const Text('Update'),
           ),
         ],
       ),
@@ -373,11 +498,11 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   late final TextEditingController _name;
   late final TextEditingController _email;
   late final TextEditingController _phone;
-  late final TextEditingController _studentId;
   late final TextEditingController _department;
   late final TextEditingController _year;
   late final TextEditingController _semester;
   late final TextEditingController _batch;
+  late final TextEditingController _section;
   bool _saving = false;
 
   @override
@@ -386,16 +511,16 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
     _name = TextEditingController(text: widget.profile.name);
     _email = TextEditingController(text: widget.profile.email);
     _phone = TextEditingController(text: widget.profile.phone);
-    _studentId = TextEditingController(text: widget.profile.studentId);
     _department = TextEditingController(text: widget.profile.department);
     _year = TextEditingController(text: widget.profile.year);
     _semester = TextEditingController(text: widget.profile.semester);
     _batch = TextEditingController(text: widget.profile.batch);
+    _section = TextEditingController(text: widget.profile.section);
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _email, _phone, _studentId, _department, _year, _semester, _batch]) {
+    for (final c in [_name, _email, _phone, _department, _year, _semester, _batch, _section]) {
       c.dispose();
     }
     super.dispose();
@@ -413,11 +538,11 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       name: _name.text.trim(),
       email: _email.text.trim(),
       phone: _phone.text.trim(),
-      studentId: _studentId.text.trim(),
       department: _department.text.trim(),
       year: _year.text.trim(),
       semester: _semester.text.trim(),
       batch: _batch.text.trim(),
+      section: _section.text.trim(),
     );
     await widget.ref.read(profileProvider.notifier).updateProfile(updated);
     if (mounted) Navigator.pop(context);
@@ -466,11 +591,11 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                 keyboardType: TextInputType.emailAddress),
             _buildField('Phone', _phone, Icons.phone_outlined,
                 keyboardType: TextInputType.phone),
-            _buildField('Student ID', _studentId, Icons.badge_outlined),
             _buildField('Department', _department, Icons.school_outlined),
             _buildField('Year', _year, Icons.grade_outlined),
             _buildField('Semester', _semester, Icons.calendar_today_outlined),
             _buildField('Batch', _batch, Icons.group_outlined),
+            _buildField('Section', _section, Icons.layers_outlined),
             const SizedBox(height: 8),
 
             // ── Save ─────────────────────────────────────────────────────
@@ -523,12 +648,14 @@ class _InfoTile extends StatelessWidget {
   final String label;
   final String value;
   final bool valueMuted;
+  final Widget? trailing;
 
   const _InfoTile({
     required this.icon,
     required this.label,
     required this.value,
     this.valueMuted = false,
+    this.trailing,
   });
 
   @override
@@ -552,6 +679,7 @@ class _InfoTile extends StatelessWidget {
           fontSize: 14,
         ),
       ),
+      trailing: trailing,
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
@@ -585,3 +713,4 @@ class _ActionTile extends StatelessWidget {
     );
   }
 }
+
