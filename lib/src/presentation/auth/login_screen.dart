@@ -13,6 +13,7 @@ import '../chatbot/chatbot_screen.dart';
 import '../profile/profile_screen.dart';
 import '../teacher/teacher_dashboard_screen.dart';
 import 'teacher_register_screen.dart';
+import 'admin_main_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -62,6 +63,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         email: profileData['email'] ?? '',
         phone: profileData['phone'] ?? '',
         userId: data['user_id'].toString(),
+        collegeId: profileData['college_id'] ?? '',
+        department: profileData['department'] ?? '',
+        year: profileData['year'] ?? '',
         batch: profileData['batch'] ?? '',
         semester: profileData['semester'] ?? '',
         section: profileData['section'] ?? '',
@@ -266,6 +270,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 12),
           const Text('Access academic console and controls.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12), textAlign: TextAlign.center),
           const SizedBox(height: 32),
+          SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminLoginScreen())),

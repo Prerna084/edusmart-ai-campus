@@ -43,7 +43,7 @@ with engine.connect() as conn:
             print(f"ℹ️ Skipped {table}.{col_name}: {str(e)[:50]}...")
             pass
 
-    # --- Users table ---
+    for col, ctype in [
         ("email", "VARCHAR UNIQUE"),
         ("password_hash", "VARCHAR"),
         ("name", "VARCHAR"),
