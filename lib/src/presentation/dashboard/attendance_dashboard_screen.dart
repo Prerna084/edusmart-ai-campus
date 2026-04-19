@@ -177,6 +177,9 @@ class _AttendanceDashboardScreenState
 
         if (inputImage != null) {
           final faces = await _faceDetector.processImage(inputImage);
+          if (faces.isNotEmpty) {
+            debugPrint('Faces detected: ${faces.length}');
+          }
           if (mounted) {
             setState(() {
               _faces = faces;
@@ -498,6 +501,7 @@ class _AttendanceDashboardScreenState
                                                     faces: _faces,
                                                     imageSize: _cameraController!.value.previewSize!,
                                                     rotation: _availableCameras[_selectedCameraIndex].sensorOrientation,
+                                                    isFrontCamera: _availableCameras[_selectedCameraIndex].lensDirection == CameraLensDirection.front,
                                                   ),
                                                 ),
                                             ],
@@ -737,11 +741,13 @@ class FaceOverlayPainter extends CustomPainter {
   final List<Face> faces;
   final Size imageSize;
   final int rotation;
+  final bool isFrontCamera;
 
   FaceOverlayPainter({
     required this.faces,
     required this.imageSize,
     required this.rotation,
+    required this.isFrontCamera,
   });
 
   @override
@@ -770,23 +776,27 @@ class FaceOverlayPainter extends CustomPainter {
   }) {
     double scaleX, scaleY;
 
-    // ML Kit results are based on the sensor orientation.
-    // If the image is rotated (90/270), we need to swap width and height for scaling.
-    if (rotation == 90 || rotation == 270) {
-      scaleX = widgetSize.width / imageSize.height;
-      scaleY = widgetSize.height / imageSize.width;
-    } else {
-      scaleX = widgetSize.width / imageSize.width;
-      scaleY = widgetSize.height / imageSize.height;
-    }
-
-    // Mirroring adjustment (Front camera logic)
-    // Note: This is an simplified implementation; front cameras usually need mirroring.
+    // IMPORTANT: imageSize for ML Kit metadata was set as Size(image.width, image.height)
+    // in CameraUtils. 
+    // In Portrait, width is usually the short side (e.g. 720) and height long side (1280).
+    // The widgetSize is also in Portrait (e.g. 300x533).
+    // Therefore, scaleX = widgetWidth / 720, scaleY = widgetHeight / 1280.
     
+    scaleX = widgetSize.width / imageSize.width;
+    scaleY = widgetSize.height / imageSize.height;
+
+    final double left = isFrontCamera 
+        ? widgetSize.width - (rect.right * scaleX)
+        : rect.left * scaleX;
+    
+    final double right = isFrontCamera
+        ? widgetSize.width - (rect.left * scaleX)
+        : rect.right * scaleX;
+
     return Rect.fromLTRB(
-      rect.left * scaleX,
+      left,
       rect.top * scaleY,
-      rect.right * scaleX,
+      right,
       rect.bottom * scaleY,
     );
   }

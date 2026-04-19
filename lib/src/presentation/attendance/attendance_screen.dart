@@ -240,10 +240,11 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                               if (_faces.isNotEmpty)
                                 CustomPaint(
                                     painter: FaceOverlayPainter(
-                                    faces: _faces,
-                                    imageSize: _cameraController!.value.previewSize!,
-                                    rotation: _cameraController!.description.sensorOrientation,
-                                  ),
+                                      faces: _faces,
+                                      imageSize: _cameraController!.value.previewSize!,
+                                      rotation: _cameraController!.description.sensorOrientation,
+                                      isFrontCamera: _cameraController!.description.lensDirection == CameraLensDirection.front,
+                                    ),
                                 ),
                             ],
                           )
@@ -321,11 +322,13 @@ class FaceOverlayPainter extends CustomPainter {
   final List<Face> faces;
   final Size imageSize;
   final int rotation;
+  final bool isFrontCamera;
 
   FaceOverlayPainter({
     required this.faces,
     required this.imageSize,
     required this.rotation,
+    required this.isFrontCamera,
   });
 
   @override
@@ -354,18 +357,21 @@ class FaceOverlayPainter extends CustomPainter {
   }) {
     double scaleX, scaleY;
 
-    if (rotation == 90 || rotation == 270) {
-      scaleX = widgetSize.width / imageSize.height;
-      scaleY = widgetSize.height / imageSize.width;
-    } else {
-      scaleX = widgetSize.width / imageSize.width;
-      scaleY = widgetSize.height / imageSize.height;
-    }
+    scaleX = widgetSize.width / imageSize.width;
+    scaleY = widgetSize.height / imageSize.height;
+
+    final double left = isFrontCamera 
+        ? widgetSize.width - (rect.right * scaleX)
+        : rect.left * scaleX;
+    
+    final double right = isFrontCamera
+        ? widgetSize.width - (rect.left * scaleX)
+        : rect.right * scaleX;
 
     return Rect.fromLTRB(
-      rect.left * scaleX,
+      left,
       rect.top * scaleY,
-      rect.right * scaleX,
+      right,
       rect.bottom * scaleY,
     );
   }
