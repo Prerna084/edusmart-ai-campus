@@ -114,6 +114,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 # ── Authentication API ───────────────────────────────────────────────────────
 
 @app.post("/auth/register")
