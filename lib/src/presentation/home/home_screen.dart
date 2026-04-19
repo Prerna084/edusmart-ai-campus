@@ -168,7 +168,7 @@ class HomeScreen extends ConsumerWidget {
                       return Column(
                         children: tests.map((test) {
                           final isExpired = test.validUntil != null && DateTime.now().isAfter(test.validUntil!);
-                          final isSubmitted = test.userAttempts >= test.maxAttempts;
+                          final isSubmitted = test.userAttempts >= test.max_attempts;
                           final isLocked = isExpired || isSubmitted;
 
                           return Padding(
@@ -181,6 +181,8 @@ class HomeScreen extends ConsumerWidget {
                                       initialTopic: test.topic,
                                       scheduledTestId: test.id,
                                       timeLimitMinutes: test.timeLimitMinutes,
+                                      difficulty: test.difficulty,
+                                      numQuestions: test.numQuestions,
                                     )));
                                   },
                               child: GlassContainer(
@@ -218,6 +220,34 @@ class HomeScreen extends ConsumerWidget {
                                               fontWeight: isLocked ? FontWeight.bold : FontWeight.normal,
                                             ),
                                           ),
+                                          if (isSubmitted && test.teacherFeedback != null) ...[
+                                            const SizedBox(height: 12),
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.accent.withOpacity(0.05),
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(color: AppColors.accent.withOpacity(0.2)),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  const Row(
+                                                    children: [
+                                                      Icon(Icons.feedback_outlined, size: 14, color: AppColors.accent),
+                                                      SizedBox(width: 6),
+                                                      Text('Teacher Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    test.teacherFeedback!,
+                                                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontStyle: FontStyle.italic),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),

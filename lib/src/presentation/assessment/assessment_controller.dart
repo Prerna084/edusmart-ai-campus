@@ -95,10 +95,10 @@ class AssessmentController extends StateNotifier<AssessmentState> {
 
   AssessmentController(this._ref, this._generateUseCase) : super(AssessmentState());
 
-  Future<void> generate(String topic) async {
+  Future<void> generate(String topic, {String difficulty = 'Mixed Mode', int numQuestions = 5}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final assessment = await _generateUseCase.execute(topic);
+      final assessment = await _generateUseCase.execute(topic, difficulty: difficulty, numQuestions: numQuestions);
       state = state.copyWith(
         isLoading: false,
         currentAssessment: assessment,

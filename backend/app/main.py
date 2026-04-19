@@ -596,6 +596,8 @@ class StudentProfileSchema(BaseModel):
     phone: str = ""
     department: str = ""
     year: str = ""
+    semester: str = ""
+    batch: str = ""
 
 @app.get("/students")
 def get_all_students(db: Session = Depends(get_db)):
@@ -637,6 +639,8 @@ def get_student_profile(student_id: int, db: Session = Depends(get_db)):
         "phone": profile.phone if profile else "",
         "department": profile.department if profile else "",
         "year": profile.year if profile else "",
+        "semester": profile.semester if profile else "",
+        "batch": profile.batch if profile else "",
     }
 
 
@@ -663,6 +667,8 @@ def update_student_profile(
     profile.phone = data.phone
     profile.department = data.department
     profile.year = data.year
+    profile.semester = data.semester
+    profile.batch = data.batch
     db.commit()
     db.refresh(profile)
     return {"message": "Profile updated", "student_id": student_id}
@@ -755,7 +761,9 @@ def schedule_test(data: ScheduleTestRequest, db: Session = Depends(get_db)):
         topic=data.topic,
         time_limit_minutes=data.time_limit_minutes,
         valid_until=data.valid_until,
-        max_attempts=data.max_attempts
+        max_attempts=data.max_attempts,
+        num_questions=data.num_questions,
+        difficulty=data.difficulty
     )
     db.add(test)
     db.commit()
@@ -764,7 +772,9 @@ def schedule_test(data: ScheduleTestRequest, db: Session = Depends(get_db)):
         "id": test.id, "topic": test.topic, "created_at": test.created_at.isoformat() if test.created_at else None,
         "time_limit_minutes": test.time_limit_minutes,
         "valid_until": test.valid_until.isoformat() if test.valid_until else None,
-        "max_attempts": test.max_attempts
+        "max_attempts": test.max_attempts,
+        "num_questions": test.num_questions,
+        "difficulty": test.difficulty
     }}
 
 @app.get("/tests/scheduled")
@@ -779,6 +789,8 @@ def get_scheduled_tests(db: Session = Depends(get_db)):
         "time_limit_minutes": t.time_limit_minutes,
         "valid_until": t.valid_until.isoformat() if t.valid_until else None,
         "max_attempts": t.max_attempts,
+        "num_questions": t.num_questions,
+        "difficulty": t.difficulty,
         "created_at": t.created_at.isoformat() if t.created_at else None
     } for t in tests]
 
@@ -799,7 +811,9 @@ def submit_test_result(test_id: int, data: SubmitResultRequest, db: Session = De
         test_id=test_id,
         user_id=data.user_id,
         score=data.score,
-        total_questions=data.total_questions
+        total_questions=data.total_questions,
+        questions_data=data.questions_data,
+        user_answers_data=data.user_answers_data
     )
     db.add(result)
     db.commit()
@@ -817,14 +831,68 @@ def get_test_results(db: Session = Depends(get_db)):
             TestResult.score,
             TestResult.total_questions,
             TestResult.completed_at,
+            TestResult.questions_data,
+            TestResult.user_answers_data,
+            TestResult.teacher_feedback,
             User.name.label("student_name"),
-            ScheduledTest.topic.label("test_topic")
+            ScheduledTest.topic.label("test_topic"),
+            StudentProfile.semester,
+            StudentProfile.batch
         )
         .join(User, TestResult.user_id == User.id)
         .join(ScheduledTest, TestResult.test_id == ScheduledTest.id)
+        .outerjoin(StudentProfile, User.id == StudentProfile.user_id)
         .order_by(TestResult.completed_at.desc())
         .all()
     )
+    
+    return [
+        {
+            "id": r.id,
+            "score": r.score,
+            "total_questions": r.total_questions,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "questions_data": r.questions_data,
+            "user_answers_data": r.user_answers_data,
+            "teacher_feedback": r.teacher_feedback,
+            "student_name": r.student_name,
+            "test_topic": r.test_topic,
+            "semester": r.semester,
+            "batch": r.batch
+        } for r in results
+    ]
+
+class FeedbackRequest(BaseModel):
+    feedback: str
+
+@app.post("/admin/tests/results/{result_id}/feedback")
+def provide_feedback(result_id: int, data: FeedbackRequest, db: Session = Depends(get_db)):
+    result = db.query(TestResult).filter(TestResult.id == result_id).first()
+    if not result:
+        raise HTTPException(status_code=404, detail="Test result not found")
+    result.teacher_feedback = data.feedback
+    db.commit()
+    return {"message": "Feedback submitted successfully"}
+
+@app.get("/student/{user_id}/tests/results")
+def get_student_test_results(user_id: int, db: Session = Depends(get_db)):
+    results = db.query(TestResult).filter(TestResult.user_id == user_id).all()
+    # Also fetch user attempts count per test
+    from sqlalchemy import func
+    attempts = db.query(TestResult.test_id, func.count(TestResult.id).label("attempts")).filter(TestResult.user_id == user_id).group_by(TestResult.test_id).all()
+    attempts_map = {a.test_id: a.attempts for a in attempts}
+    
+    return [
+        {
+            "id": r.id,
+            "test_id": r.test_id,
+            "score": r.score,
+            "total_questions": r.total_questions,
+            "teacher_feedback": r.teacher_feedback,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "attempts": attempts_map.get(r.test_id, 0)
+        } for r in results
+    ]
     
     return [
         {

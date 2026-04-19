@@ -187,6 +187,20 @@ class _ProfileView extends ConsumerWidget {
                             label: 'Student ID',
                             value: profile.studentId,
                           ),
+                          const Divider(height: 1, color: AppColors.glassBorder),
+                          _InfoTile(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Semester',
+                            value: profile.semester.isEmpty ? 'Not set' : profile.semester,
+                            valueMuted: profile.semester.isEmpty,
+                          ),
+                          const Divider(height: 1, color: AppColors.glassBorder),
+                          _InfoTile(
+                            icon: Icons.group_outlined,
+                            label: 'Batch',
+                            value: profile.batch.isEmpty ? 'Not set' : profile.batch,
+                            valueMuted: profile.batch.isEmpty,
+                          ),
                         ],
                       ),
                     ),
@@ -362,6 +376,8 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   late final TextEditingController _studentId;
   late final TextEditingController _department;
   late final TextEditingController _year;
+  late final TextEditingController _semester;
+  late final TextEditingController _batch;
   bool _saving = false;
 
   @override
@@ -373,11 +389,13 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
     _studentId = TextEditingController(text: widget.profile.studentId);
     _department = TextEditingController(text: widget.profile.department);
     _year = TextEditingController(text: widget.profile.year);
+    _semester = TextEditingController(text: widget.profile.semester);
+    _batch = TextEditingController(text: widget.profile.batch);
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _email, _phone, _studentId, _department, _year]) {
+    for (final c in [_name, _email, _phone, _studentId, _department, _year, _semester, _batch]) {
       c.dispose();
     }
     super.dispose();
@@ -398,6 +416,8 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       studentId: _studentId.text.trim(),
       department: _department.text.trim(),
       year: _year.text.trim(),
+      semester: _semester.text.trim(),
+      batch: _batch.text.trim(),
     );
     await widget.ref.read(profileProvider.notifier).updateProfile(updated);
     if (mounted) Navigator.pop(context);
@@ -449,6 +469,8 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
             _buildField('Student ID', _studentId, Icons.badge_outlined),
             _buildField('Department', _department, Icons.school_outlined),
             _buildField('Year', _year, Icons.grade_outlined),
+            _buildField('Semester', _semester, Icons.calendar_today_outlined),
+            _buildField('Batch', _batch, Icons.group_outlined),
             const SizedBox(height: 8),
 
             // ── Save ─────────────────────────────────────────────────────

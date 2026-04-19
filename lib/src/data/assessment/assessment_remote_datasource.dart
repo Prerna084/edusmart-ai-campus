@@ -9,11 +9,11 @@ class AssessmentRemoteDatasource {
 
   AssessmentRemoteDatasource({required this.apiKey});
 
-  Future<AssessmentModel> generateAssessment(String topic) async {
+  Future<AssessmentModel> generateAssessment(String topic, {String difficulty = 'Mixed Mode', int numQuestions = 5}) async {
     if (apiKey.isEmpty) {
       // No key configured — use local mock quiz
       await Future.delayed(const Duration(seconds: 2));
-      final Map<String, dynamic> mockData = _buildMockAssessment(topic);
+      final Map<String, dynamic> mockData = _buildMockAssessment(topic, numQuestions: numQuestions);
       return AssessmentModel.fromJson(mockData);
     }
 
@@ -26,8 +26,14 @@ class AssessmentRemoteDatasource {
         ),
       );
 
+      String difficultyContext = "Difficulty: $difficulty.";
+      if (difficulty == "Mixed Mode") {
+        difficultyContext = "Mixed Mode Difficulty Distribution: 20% Easy, 30% Beginner, 25% Moderate, 15% Advanced, 10% Expert.";
+      }
+
       final prompt = '''
-      Generate a 5-question multiple choice assessment on the topic: $topic.
+      Generate a $numQuestions-question multiple choice assessment on the topic: $topic.
+      $difficultyContext
       Return a JSON object with the following structure:
       {
         "id": "unique_id",
@@ -40,7 +46,8 @@ class AssessmentRemoteDatasource {
             "text": "Question text",
             "options": ["Option A", "Option B", "Option C", "Option D"],
             "correctOptionIndex": 0,
-            "explanation": "Why this is correct"
+            "explanation": "Why this is correct",
+            "difficulty": "Question difficulty level"
           }
         ]
       }
@@ -60,12 +67,12 @@ class AssessmentRemoteDatasource {
     } catch (_) {
       // Gemini call failed (invalid key, quota, network) — fall back to mock
       await Future.delayed(const Duration(seconds: 1));
-      final Map<String, dynamic> mockData = _buildMockAssessment(topic);
+      final Map<String, dynamic> mockData = _buildMockAssessment(topic, numQuestions: numQuestions);
       return AssessmentModel.fromJson(mockData);
     }
   }
 
-  Map<String, dynamic> _buildMockAssessment(String topic) {
+  Map<String, dynamic> _buildMockAssessment(String topic, {int numQuestions = 5}) {
     final now = DateTime.now();
     final topicLabel = topic.trim().isEmpty ? 'General Concepts' : topic.trim();
     final questionBank = <Map<String, dynamic>>[
@@ -160,7 +167,7 @@ class AssessmentRemoteDatasource {
     ];
 
     final shuffled = [...questionBank]..shuffle(_random);
-    final selected = shuffled.take(5).toList();
+    final selected = shuffled.take(numQuestions).toList();
     final questions = selected.asMap().entries.map((entry) {
       final idx = entry.key + 1;
       final q = entry.value;

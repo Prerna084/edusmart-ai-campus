@@ -8,7 +8,9 @@ class ScheduledTestModel {
   final DateTime? createdAt;
   final int timeLimitMinutes;
   final DateTime? validUntil;
-  final int maxAttempts;
+  final int numQuestions;
+  final String difficulty;
+  String? teacherFeedback;
   int userAttempts;
 
   ScheduledTestModel({
@@ -17,7 +19,10 @@ class ScheduledTestModel {
     this.createdAt,
     this.timeLimitMinutes = 15,
     this.validUntil,
-    this.maxAttempts = 1,
+    this.max_attempts = 1,
+    this.numQuestions = 5,
+    this.difficulty = 'Mixed Mode',
+    this.teacherFeedback,
     this.userAttempts = 0,
   });
 
@@ -28,7 +33,9 @@ class ScheduledTestModel {
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
       timeLimitMinutes: json['time_limit_minutes'] ?? 15,
       validUntil: json['valid_until'] != null ? DateTime.parse(json['valid_until']) : null,
-      maxAttempts: json['max_attempts'] ?? 1,
+      max_attempts: json['max_attempts'] ?? 1,
+      numQuestions: json['num_questions'] ?? 5,
+      difficulty: json['difficulty'] ?? 'Mixed Mode',
     );
   }
 }
@@ -52,8 +59,12 @@ final scheduledTestsProvider = FutureProvider<List<ScheduledTestModel>>((ref) as
           final attemptsMap = {
               for (var a in attemptData) a['test_id'] as int: a['attempts'] as int
           };
+          final feedbackMap = {
+              for (var a in attemptData) a['test_id'] as int: a['teacher_feedback'] as String?
+          };
           for (var test in tests) {
               test.userAttempts = attemptsMap[test.id] ?? 0;
+              test.teacherFeedback = feedbackMap[test.id];
           }
       } catch (e) {
           // Soft fail

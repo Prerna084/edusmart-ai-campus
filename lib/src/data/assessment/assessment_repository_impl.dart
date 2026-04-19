@@ -9,8 +9,8 @@ class AssessmentRepositoryImpl implements AssessmentRepository {
   AssessmentRepositoryImpl({required this.remoteDatasource});
 
   @override
-  Future<Assessment> generateAssessment(String topic) async {
-    final assessment = await remoteDatasource.generateAssessment(topic);
+  Future<Assessment> generateAssessment(String topic, {String difficulty = 'Mixed Mode', int numQuestions = 5}) async {
+    final assessment = await remoteDatasource.generateAssessment(topic, difficulty: difficulty, numQuestions: numQuestions);
     _history.add(assessment);
     return assessment;
   }

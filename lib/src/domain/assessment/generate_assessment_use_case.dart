@@ -6,7 +6,7 @@ class GenerateAssessmentUseCase {
 
   GenerateAssessmentUseCase(this.repository);
 
-  Future<Assessment> execute(String topic) {
-    return repository.generateAssessment(topic);
+  Future<Assessment> execute(String topic, {String difficulty = 'Mixed Mode', int numQuestions = 5}) {
+    return repository.generateAssessment(topic, difficulty: difficulty, numQuestions: numQuestions);
   }
 }

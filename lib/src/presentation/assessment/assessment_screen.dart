@@ -11,8 +11,10 @@ class AssessmentScreen extends ConsumerStatefulWidget {
   final String? initialTopic;
   final int? scheduledTestId;
   final int? timeLimitMinutes;
+  final String? difficulty;
+  final int? numQuestions;
 
-  const AssessmentScreen({super.key, this.initialTopic, this.scheduledTestId, this.timeLimitMinutes});
+  const AssessmentScreen({super.key, this.initialTopic, this.scheduledTestId, this.timeLimitMinutes, this.difficulty, this.numQuestions});
 
   @override
   ConsumerState<AssessmentScreen> createState() => _AssessmentScreenState();
@@ -24,6 +26,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
   Timer? _timer;
   int _timeLeftSeconds = 0;
   bool _isSubmitting = false;
+  bool _isReviewMode = false;
+  int _totalCorrect = 0;
+  int _totalQuestions = 0;
 
   @override
   void initState() {
@@ -31,7 +36,11 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
     _topicController = TextEditingController(text: widget.initialTopic ?? '');
     if (widget.initialTopic != null && widget.initialTopic!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(assessmentControllerProvider.notifier).generate(widget.initialTopic!);
+        ref.read(assessmentControllerProvider.notifier).generate(
+          widget.initialTopic!,
+          difficulty: widget.difficulty ?? 'Mixed Mode',
+          numQuestions: widget.numQuestions ?? 5,
+        );
       });
     }
   }
@@ -87,21 +96,38 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
         .entries
         .where((entry) => _selectedAnswers[entry.key] == entry.value.correctOptionIndex)
         .length;
+    final total = state.currentAssessment!.questions.length;
     final percent = total == 0 ? 0 : ((correct / total) * 100).round();
 
-    controller.completeCurrentAssessment(_selectedAnswers);
-    
+    _totalCorrect = correct;
+    _totalQuestions = total;
+
     if (widget.scheduledTestId != null) {
       try {
         final dio = ref.read(dioProvider);
-        final userId = int.tryParse(ref.read(profileProvider).valueOrNull?.studentId ?? '') ?? 0;
+        final profile = ref.read(profileProvider).valueOrNull;
+        final userId = int.tryParse(profile?.studentId ?? '') ?? 0;
+        
         if (userId > 0) {
+          // Prepare question and answer data for review
+          import 'dart:convert';
+          final questionsJson = jsonEncode((state.currentAssessment!.questions as List).map((q) => {
+            'text': q.text,
+            'options': q.options,
+            'correctOptionIndex': q.correctOptionIndex,
+            'explanation': q.explanation,
+          }).toList());
+          
+          final answersJson = jsonEncode(_selectedAnswers);
+
           await dio.post(
             '/tests/${widget.scheduledTestId}/submit',
             data: {
               'user_id': userId,
               'score': correct,
               'total_questions': total,
+              'questions_data': questionsJson,
+              'user_answers_data': answersJson,
             },
           );
         }
@@ -110,13 +136,14 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
       }
     }
 
-    _selectedAnswers.clear();
-    
     if (mounted) {
+      setState(() {
+        _isReviewMode = true;
+        _isSubmitting = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(isAuto ? 'Time is up! Auto-submitted. Score: $percent%' : 'Quiz completed! Score: $percent% ($correct/$total)')),
       );
-      Navigator.pop(context);
     }
   }
 
@@ -210,7 +237,11 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                                 ? null
                                 : () {
                                     _selectedAnswers.clear();
-                                    controller.generate(_topicController.text);
+                                    controller.generate(
+                                      _topicController.text,
+                                      difficulty: widget.difficulty ?? 'Mixed Mode',
+                                      numQuestions: widget.numQuestions ?? 5,
+                                    );
                                   },
                             child: state.isLoading
                                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -220,7 +251,129 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       ],
                     ),
                   ),
-                ] else ...[
+                ] else if (_isReviewMode) ...[
+                  // Review Mode UI
+                  GlassContainer(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        const Text('Test Result', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Score: ${((_totalCorrect / _totalQuestions) * 100).round()}% ($_totalCorrect/$_totalQuestions)',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryStart),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text('Review your answers below.', style: TextStyle(color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: state.currentAssessment!.questions.length,
+                      itemBuilder: (context, index) {
+                        final question = state.currentAssessment!.questions[index];
+                        final userAns = _selectedAnswers[index];
+                        final isCorrect = userAns == question.correctOptionIndex;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: GlassContainer(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Q${index + 1}: ${question.text}',
+                                        style: Theme.of(context).textTheme.titleLarge,
+                                      ),
+                                    ),
+                                    Icon(
+                                      isCorrect ? Icons.check_circle : Icons.cancel,
+                                      color: isCorrect ? AppColors.success : AppColors.error,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                ...List.generate(
+                                  question.options.length,
+                                  (optIndex) {
+                                    Color bgColor = AppColors.background;
+                                    Color borderColor = Colors.transparent;
+                                    
+                                    if (optIndex == question.correctOptionIndex) {
+                                      bgColor = AppColors.success.withOpacity(0.1);
+                                      borderColor = AppColors.success;
+                                    } else if (optIndex == userAns && !isCorrect) {
+                                      bgColor = AppColors.error.withOpacity(0.1);
+                                      borderColor = AppColors.error;
+                                    }
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      decoration: BoxDecoration(
+                                        color: bgColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: borderColor),
+                                      ),
+                                      child: ListTile(
+                                        title: Text(question.options[optIndex], style: const TextStyle(color: AppColors.textPrimary)),
+                                        leading: CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: optIndex == question.correctOptionIndex 
+                                              ? AppColors.success 
+                                              : (optIndex == userAns ? AppColors.error : AppColors.surface),
+                                          child: Text(
+                                            String.fromCharCode(65 + optIndex),
+                                            style: const TextStyle(fontSize: 12, color: Colors.white),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                if (question.explanation != null) ...[
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryStart.withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Explanation:', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryStart, fontSize: 13)),
+                                        const SizedBox(height: 4),
+                                        Text(question.explanation!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        controller.completeCurrentAssessment(_selectedAnswers);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Close Test'),
+                    ),
+                  ),
                   // Quiz questions
                   Expanded(
                     child: ListView.builder(
