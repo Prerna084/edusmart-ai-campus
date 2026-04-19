@@ -752,19 +752,39 @@ class FaceOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0
-      ..color = AppColors.success;
+    if (faces.isEmpty) return;
+
+    // Find the primary (largest) face
+    Face? primaryFace;
+    double maxArea = -1.0;
 
     for (final face in faces) {
+      final area = face.boundingBox.width * face.boundingBox.height;
+      if (area > maxArea) {
+        maxArea = area;
+        primaryFace = face;
+      }
+    }
+
+    final primaryPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.0
+      ..color = Colors.redAccent;
+
+    final secondaryPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = Colors.blueAccent;
+
+    for (final face in faces) {
+      final isPrimary = face == primaryFace;
       final rect = _scaleRect(
         rect: face.boundingBox,
         imageSize: imageSize,
         widgetSize: size,
         rotation: rotation,
       );
-      canvas.drawRect(rect, paint);
+      canvas.drawRect(rect, isPrimary ? primaryPaint : secondaryPaint);
     }
   }
 
