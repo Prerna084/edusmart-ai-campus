@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
