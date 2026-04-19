@@ -373,7 +373,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen> {
                       child: const Text('Close Test'),
                     ),
                   ),
-                  // Quiz questions
+                ] else if (state.currentAssessment != null) ...[
                   Expanded(
                     child: ListView.builder(
                       itemCount: state.currentAssessment!.questions.length,

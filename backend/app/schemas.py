@@ -31,6 +31,7 @@ class ScheduleTestRequest(BaseModel):
     max_attempts: Optional[int] = 1
     num_questions: Optional[int] = 5
     difficulty: Optional[str] = "Mixed Mode"
+    scheduled_at: Optional[datetime] = None
 
 class SubmitResultRequest(BaseModel):
     user_id: int

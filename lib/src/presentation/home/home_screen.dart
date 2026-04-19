@@ -212,6 +212,14 @@ class HomeScreen extends ConsumerWidget {
                                               decoration: isLocked && isExpired ? TextDecoration.lineThrough : null,
                                             ),
                                           ),
+                                          if (test.scheduledAt != null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2),
+                                              child: Text(
+                                                'Scheduled: ${test.scheduledAt!.day}/${test.scheduledAt!.month} at ${test.scheduledAt!.hour.toString().padLeft(2, '0')}:${test.scheduledAt!.minute.toString().padLeft(2, '0')}',
+                                                style: const TextStyle(fontSize: 12, color: AppColors.primaryStart, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
                                           const SizedBox(height: 4),
                                           Text(
                                             isSubmitted ? 'Submitted.' : (isExpired ? 'Expired.' : 'Tap to attempt this test.'),

@@ -89,6 +89,7 @@ class ScheduledTest(Base):
     max_attempts = Column(Integer, default=1)
     num_questions = Column(Integer, default=5)
     difficulty = Column(String, default="Mixed Mode")
+    scheduled_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 class TestResult(Base):

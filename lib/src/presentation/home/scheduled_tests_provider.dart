@@ -13,6 +13,7 @@ class ScheduledTestModel {
   final int maxAttempts;
   String? teacherFeedback;
   int userAttempts;
+  final DateTime? scheduledAt;
 
   ScheduledTestModel({
     required this.id,
@@ -25,6 +26,7 @@ class ScheduledTestModel {
     this.difficulty = 'Mixed Mode',
     this.teacherFeedback,
     this.userAttempts = 0,
+    this.scheduledAt,
   });
 
   factory ScheduledTestModel.fromJson(Map<String, dynamic> json) {
@@ -37,6 +39,7 @@ class ScheduledTestModel {
       maxAttempts: json['max_attempts'] ?? 1,
       numQuestions: json['num_questions'] ?? 5,
       difficulty: json['difficulty'] ?? 'Mixed Mode',
+      scheduledAt: json['scheduled_at'] != null ? DateTime.parse(json['scheduled_at']) : null,
     );
   }
 }

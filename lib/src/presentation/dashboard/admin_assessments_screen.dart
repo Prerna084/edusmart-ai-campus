@@ -75,6 +75,40 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
   int _selectedNumQuestions = 5;
   String _selectedDifficulty = 'Mixed Mode';
   final List<String> _difficulties = ['Easy', 'Beginner', 'Moderate', 'Advanced', 'Expert', 'Mixed Mode'];
+  DateTime? _scheduledAt;
+
+  Future<void> _selectScheduleTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppColors.primaryStart,
+            onPrimary: Colors.white,
+            surface: AppColors.surface,
+            onSurface: AppColors.textPrimary,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+
+    if (date != null && mounted) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+
+      if (time != null && mounted) {
+        setState(() {
+          _scheduledAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -88,7 +122,9 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
 
     setState(() => _isScheduling = true);
     try {
-      final validUntil = DateTime.now().add(Duration(hours: _selectedValidityHours)).toUtc().toIso8601String();
+      final startAt = _scheduledAt ?? DateTime.now();
+      final validUntil = startAt.add(Duration(hours: _selectedValidityHours)).toUtc().toIso8601String();
+      
       final dio = ref.read(dioProvider);
       await dio.post('/admin/tests', data: {
         'topic': topic,
@@ -97,6 +133,7 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
         'max_attempts': _selectedAttempts,
         'num_questions': _selectedNumQuestions,
         'difficulty': _selectedDifficulty,
+        'scheduled_at': startAt.toUtc().toIso8601String(),
       });
 
       if (mounted) {
@@ -108,6 +145,7 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
           _selectedTimeLimit = 15;
           _selectedAttempts = 1;
           _selectedValidityHours = 24;
+          _scheduledAt = null;
         });
       }
     } catch (e) {
@@ -238,6 +276,47 @@ class _AdminAssessmentsScreenState extends ConsumerState<AdminAssessmentsScreen>
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: _selectScheduleTime,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _scheduledAt != null ? AppColors.primaryStart : Colors.transparent),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 18, color: _scheduledAt != null ? AppColors.primaryStart : AppColors.textMuted),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _scheduledAt == null ? 'Schedule Date & Time' : 'Scheduled For',
+                                    style: TextStyle(fontSize: 12, color: _scheduledAt != null ? AppColors.primaryStart : AppColors.textMuted),
+                                  ),
+                                  if (_scheduledAt != null)
+                                    Text(
+                                      '${_scheduledAt!.day}/${_scheduledAt!.month}/${_scheduledAt!.year} at ${_scheduledAt!.hour.toString().padLeft(2, '0')}:${_scheduledAt!.minute.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                                    )
+                                  else
+                                    const Text('Now (Default)', style: TextStyle(color: AppColors.textSecondary)),
+                                ],
+                              ),
+                            ),
+                            if (_scheduledAt != null)
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18, color: AppColors.error),
+                                onPressed: () => setState(() => _scheduledAt = null),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(

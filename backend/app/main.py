@@ -71,7 +71,8 @@ with engine.connect() as conn:
         ("valid_until", "TIMESTAMP"),
         ("max_attempts", "INTEGER DEFAULT 1"),
         ("num_questions", "INTEGER DEFAULT 5"),
-        ("difficulty", "VARCHAR DEFAULT 'Mixed Mode'")
+        ("difficulty", "VARCHAR DEFAULT 'Mixed Mode'"),
+        ("scheduled_at", "TIMESTAMP")
     ]:
         safe_add_column("scheduled_tests", col, ctype)
 
@@ -910,7 +911,8 @@ def schedule_test(data: schemas.ScheduleTestRequest, db: Session = Depends(get_d
         valid_until=data.valid_until,
         max_attempts=data.max_attempts,
         num_questions=data.num_questions,
-        difficulty=data.difficulty
+        difficulty=data.difficulty,
+        scheduled_at=data.scheduled_at
     )
     db.add(test)
     db.commit()
@@ -921,15 +923,17 @@ def schedule_test(data: schemas.ScheduleTestRequest, db: Session = Depends(get_d
         "valid_until": test.valid_until.isoformat() if test.valid_until else None,
         "max_attempts": test.max_attempts,
         "num_questions": test.num_questions,
-        "difficulty": test.difficulty
+        "difficulty": test.difficulty,
+        "scheduled_at": test.scheduled_at.isoformat() if test.scheduled_at else None
     }}
 
 @app.get("/tests/scheduled")
 def get_scheduled_tests(db: Session = Depends(get_db)):
     """
     Student fetches all active scheduled tests for the announcements tab.
+    Sorted by scheduled_at desc (latest scheduled test first).
     """
-    tests = db.query(ScheduledTest).order_by(ScheduledTest.created_at.desc()).all()
+    tests = db.query(ScheduledTest).order_by(ScheduledTest.scheduled_at.desc()).all()
     return [{
         "id": t.id, 
         "topic": t.topic, 
@@ -938,7 +942,8 @@ def get_scheduled_tests(db: Session = Depends(get_db)):
         "max_attempts": t.max_attempts,
         "num_questions": t.num_questions,
         "difficulty": t.difficulty,
-        "created_at": t.created_at.isoformat() if t.created_at else None
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+        "scheduled_at": t.scheduled_at.isoformat() if t.scheduled_at else None
     } for t in tests]
 
 @app.post("/tests/{test_id}/submit")
