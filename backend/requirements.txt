@@ -8,3 +8,5 @@ numpy==1.26.4
 Pillow
 pydantic
 starlette
+httpx
+python-dotenv

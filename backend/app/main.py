@@ -12,6 +12,7 @@ import numpy as np
 from pydantic import BaseModel
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
+from app.ai_service import AIService, build_mcq_prompt, build_study_plan_prompt, build_tutor_system, extract_json_array
 
 # Create the database tables
 Base.metadata.create_all(bind=engine)
@@ -84,6 +85,17 @@ with engine.connect() as conn:
         ("teacher_feedback", "TEXT")
     ]:
         safe_add_column("test_results", col, ctype)
+
+    # ── AI Logs table (auto-create columns) ──────────────────────────────────
+    for col, ctype in [
+        ("feature",    "VARCHAR"),
+        ("prompt",     "TEXT"),
+        ("response",   "TEXT"),
+        ("model_used", "VARCHAR"),
+        ("is_online",  "INTEGER"),
+        ("latency_ms", "INTEGER"),
+    ]:
+        safe_add_column("ai_logs", col, ctype)
 print("✅ Database auto-migration complete.")
 def _auto_seed_syllabus():
     """Seed syllabus data if the subjects table is empty."""
@@ -721,124 +733,29 @@ def get_student_attendance(student_id: int, db: Session = Depends(get_db)):
         "attendance": attendance_items,
     }
 
-# --- AI Tutor Chatbot Simulator ---
+# ── AI Tutor Chatbot ──────────────────────────────────────────────────────────
+
 class ChatMessage(BaseModel):
     message: str
 
-@app.post("/tutor/ask")
-async def ask_tutor(chat: ChatMessage):
+@app.post("/tutor/ask", response_model=schemas.AITutorResponse)
+async def ask_tutor(chat: ChatMessage, db: Session = Depends(get_db)):
     """
-    Simulates an AI Tutor response. 
-    Can be easily replaced with an OpenAI, Gemini, or Claude API call.
+    AI Tutor endpoint — Hybrid multi-level fallback:
+      1. Gemini 1.5 Flash (online)
+      2. Qwen2.5-7B → Mistral 7B → Phi-3.5 → Llama 3.1 (local via Ollama)
+    Switching is fully automatic and invisible to the user.
     """
-    await asyncio.sleep(1.5)  # Simulate API thinking time
-    
-    msg_lower = chat.message.strip().lower()
-    response = "I'm your AI Tutor! Ask me anything about your syllabus, Flutter, Python, or AI concepts."
-
-    basic_intents = ["start with the basics", "from scratch", "fundamentals"]
-    affirmative_intents = ["yes", "yeah", "yup", "ok", "okay", "sure", "please"]
-    negative_intents = ["no", "nope", "not now", "later"]
-
-    if "dsa" in msg_lower or "algorithm" in msg_lower:
-        response = (
-            "Great topic. Beginner DSA roadmap:\n"
-            "1) Arrays and Strings\n"
-            "2) Hashing\n"
-            "3) Two Pointers + Sliding Window\n"
-            "4) Linked List\n"
-            "5) Stack and Queue\n"
-            "6) Trees and basic graphs\n\n"
-            "Let's start with Arrays first. Say 'arrays basics' or 'arrays practice questions'."
-        )
-    elif "arrays basics" in msg_lower or ("array" in msg_lower and "basic" in msg_lower):
-        response = (
-            "Arrays for beginners:\n"
-            "- Array stores elements in contiguous memory\n"
-            "- Access by index is O(1)\n"
-            "- Searching in unsorted array is O(n)\n"
-            "- Insert/delete in middle is O(n)\n\n"
-            "Core starter problems: find max, reverse array, move zeros, two-sum."
-        )
-    elif "arrays" in msg_lower or "array" in msg_lower:
-        response = (
-            "Good choice. For Arrays, do this order:\n"
-            "1) Traversal and indexing\n"
-            "2) Min/Max and frequency count\n"
-            "3) Two-sum\n"
-            "4) Prefix sum basics\n"
-            "5) Sliding window intro\n\n"
-            "Say 'arrays practice questions' and I'll give you a mini set."
-        )
-    elif "practice" in msg_lower and ("array" in msg_lower or "dsa" in msg_lower or "algorithm" in msg_lower):
-        response = (
-            "Beginner practice (Arrays):\n"
-            "1) Largest element in an array\n"
-            "2) Second largest element\n"
-            "3) Move all zeros to end\n"
-            "4) Left rotate array by one\n"
-            "5) Two-sum (return indices)\n\n"
-            "If you want, I can send step-by-step hints for each."
-        )
-    elif any(intent in msg_lower for intent in basic_intents) or msg_lower in {"beginner", "beginners"}:
-        response = (
-            "Great choice. Let's start with the basics in 3 steps:\n"
-            "1) Core concept: understand what the topic solves.\n"
-            "2) Small example: build one tiny working example.\n"
-            "3) Practice: solve 2 beginner questions and review mistakes.\n\n"
-            "Tell me your exact topic (for example: Flutter widgets, Riverpod state, FastAPI routes), and I'll give a beginner roadmap."
-        )
-    elif msg_lower in affirmative_intents:
-        response = (
-            "Awesome. Share your topic name and your current level (beginner/intermediate), "
-            "and I will give you a step-by-step study plan with examples."
-        )
-    elif msg_lower in negative_intents:
-        response = "No problem. Whenever you're ready, send a topic and I will help you study it step by step."
-    elif "flutter" in msg_lower or "riverpod" in msg_lower:
-        response = (
-            "Flutter basics roadmap:\n"
-            "1) Widgets (Stateless vs Stateful)\n"
-            "2) Layouts (Row, Column, Expanded, ListView)\n"
-            "3) State management (setState -> Riverpod)\n"
-            "4) API calls and model parsing\n\n"
-            "If you want, I can start with a beginner Riverpod counter example."
-        )
-    elif "python" in msg_lower or "fastapi" in msg_lower:
-        response = (
-            "FastAPI basics roadmap:\n"
-            "1) Path operations (GET/POST)\n"
-            "2) Request body with Pydantic models\n"
-            "3) Validation and error handling\n"
-            "4) Database integration with SQLAlchemy\n\n"
-            "Say 'show example' and I'll provide a simple endpoint + schema."
-        )
-    elif "binary search" in msg_lower or "tree" in msg_lower:
-        response = (
-            "Binary Search Tree basics:\n"
-            "- Left child values are smaller than parent\n"
-            "- Right child values are larger than parent\n"
-            "- Average search time is O(log n)\n\n"
-            "Would you like insertion and search code in Python?"
-        )
-    elif "campus" in msg_lower or "attendance" in msg_lower:
-        response = (
-            "Attendance flow:\n"
-            "1) Register face\n"
-            "2) Capture image and call /attendance/mark\n"
-            "3) View daily status from /attendance/today\n\n"
-            "If any step fails, tell me the exact error and I'll debug it with you."
-        )
-    elif "hello" in msg_lower or msg_lower == "hi":
-        response = "Hello! I'm here to help you study. Tell me a topic and your level (beginner/intermediate)."
-    else:
-        response = (
-            f"I can help with '{chat.message}'. "
-            "Share your level (beginner/intermediate) and goal (learn basics, solve quiz, or build project), "
-            "and I'll give a personalized step-by-step answer."
-        )
-
-    return {"response": response}
+    result = await AIService.generate(
+        db=db,
+        feature="ask_tutor",
+        prompt=chat.message,
+        system=build_tutor_system(),
+        max_tokens=800,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+    return result
 
 # ── Students API ─────────────────────────────────────────────────────────────
 
@@ -1207,43 +1124,123 @@ def get_teacher_subjects(teacher_id: int, db: Session = Depends(get_db)):
     ]
 
 @app.post("/teachers/subjects/{assignment_id}/generate-plan")
-def generate_study_plan(assignment_id: int, db: Session = Depends(get_db)):
+async def generate_study_plan(assignment_id: int, db: Session = Depends(get_db)):
+    """
+    Generates a 3-week AI study plan for the given teacher-subject assignment.
+    Uses the hybrid AI fallback pipeline automatically.
+    """
     assignment = db.query(TeacherSubject).filter(TeacherSubject.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    
-    # Check if plans already exist
+
     existing = db.query(WeeklyStudyPlan).filter(WeeklyStudyPlan.teacher_subject_id == assignment_id).first()
     if existing:
         return {"message": "Plan already generated."}
 
-    # Simulate AI Generation (Mocking robust logic)
-    # In a real app, you would pass the syllabus text to LLM here.
     subject = db.query(Subject).filter(Subject.id == assignment.subject_id).first()
-    
+    prompt = build_study_plan_prompt(
+        subject.title if subject else "Unknown Subject",
+        assignment.semester,
+        assignment.batch,
+    )
+
+    result = await AIService.generate(
+        db=db,
+        feature="study_plan",
+        prompt=prompt,
+        system="You are a curriculum designer. Output ONLY valid raw JSON with no markdown.",
+        max_tokens=1200,
+        temperature=0.5,
+    )
+
+    if "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+
+    try:
+        plans_data = extract_json_array(result["response"])
+    except Exception as e:
+        print(f"Study plan JSON parse error: {e}\nRaw: {result['response'][:300]}")
+        raise HTTPException(status_code=500, detail="AI returned malformed study plan data.")
+
     plans = []
-    topics = [
-        {"week": 1, "title": "Introduction to Fundamentals", "topics": ["Overview", "Basic Concepts", "History"], "objective": "Understand basic history and definitions."},
-        {"week": 2, "title": "Core Principles", "topics": ["Principle A", "Principle B", "Case Study"], "objective": "Apply core principles to simple scenarios."},
-        {"week": 3, "title": "Advanced Applications", "topics": ["Optimization", "Scaling", "Tooling"], "objective": "Evaluate advanced tools and methods."},
-    ]
-    
-    for t in topics:
+    for t in plans_data:
         plan = WeeklyStudyPlan(
             teacher_subject_id=assignment.id,
-            week_number=t["week"],
-            title=t["title"],
+            week_number=t.get("week", len(plans) + 1),
+            title=t.get("title", f"Week {len(plans) + 1}"),
             content=json.dumps({
-                "topics": t["topics"],
-                "objective": t["objective"],
-                "suggested_sequence": [f"Lecture: {t['topics'][0]}", f"Lab: {t['topics'][1]}", "Recitation"]
-            })
+                "topics":             t.get("topics", []),
+                "objective":          t.get("objective", ""),
+                "suggested_sequence": ["Lecture", "Practice", "Revision"],
+                "ai_model":           result["model"],
+            }),
         )
         db.add(plan)
         plans.append(plan)
-        
+
     db.commit()
-    return {"message": "AI Study Plan generated successfully", "weeks": len(plans)}
+    return {
+        "message": "AI Study Plan generated successfully",
+        "weeks":   len(plans),
+        "model":   result["model"],
+        "is_online": result["is_online"],
+    }
+
+
+@app.post("/admin/tests/generate-mcqs", response_model=schemas.MCQGenerationResponse)
+async def generate_mcqs(data: schemas.MCQGenerationRequest, db: Session = Depends(get_db)):
+    """
+    Generates MCQs for any topic using the hybrid AI fallback pipeline.
+    Returns structured JSON questions ready for use in the assessment engine.
+    """
+    prompt = build_mcq_prompt(data.topic, data.num_questions, data.difficulty)
+
+    result = await AIService.generate(
+        db=db,
+        feature="mcq_gen",
+        prompt=prompt,
+        system="You are an expert examiner. Output ONLY a valid JSON array with no markdown or explanation.",
+        max_tokens=1000,
+        temperature=0.6,
+    )
+
+    if "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+
+    try:
+        questions = extract_json_array(result["response"])
+    except Exception as e:
+        print(f"MCQ JSON parse error: {e}\nRaw: {result['response'][:300]}")
+        raise HTTPException(status_code=500, detail="AI returned malformed MCQ data.")
+
+    return {
+        "questions":  questions,
+        "model":      result["model"],
+        "is_online":  result["is_online"],
+        "latency_ms": result["latency_ms"],
+    }
+
+
+@app.get("/admin/ai-logs")
+def get_ai_logs(limit: int = 50, db: Session = Depends(get_db)):
+    """
+    Admin endpoint: returns the most recent AI inference logs.
+    Shows which model served each request and whether it was online or local.
+    """
+    from app.models import AILog
+    logs = db.query(AILog).order_by(AILog.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id":         l.id,
+            "feature":    l.feature,
+            "model_used": l.model_used,
+            "is_online":  bool(l.is_online),
+            "latency_ms": l.latency_ms,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+        }
+        for l in logs
+    ]
+
 
 @app.get("/teachers/subjects/{assignment_id}/plans", response_model=list[schemas.WeeklyStudyPlanOut])
 def get_study_plans(assignment_id: int, db: Session = Depends(get_db)):

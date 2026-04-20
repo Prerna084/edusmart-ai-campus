@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date, time
+from typing import Optional, List, Dict, Any
 
 class UserCreate(BaseModel):
     name: str
@@ -92,3 +93,28 @@ class WeeklyStudyPlanOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── AI Feature Schemas ────────────────────────────────────────────────────────
+
+class MCQGenerationRequest(BaseModel):
+    topic: str
+    num_questions: Optional[int] = 5
+    difficulty: Optional[str] = "Intermediate"
+
+class MCQItem(BaseModel):
+    question: str
+    options: List[str]
+    correct_index: int
+
+class MCQGenerationResponse(BaseModel):
+    questions: List[Dict[str, Any]]
+    model: str
+    is_online: bool
+    latency_ms: int
+
+class AITutorResponse(BaseModel):
+    response: str
+    model: str
+    is_online: bool
+    latency_ms: int

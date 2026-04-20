@@ -140,3 +140,19 @@ class WeeklyStudyPlan(Base):
     content = Column(Text, nullable=False) # JSON string: {topics: [], objectives: [], suggested_sequence: []}
     is_approved = Column(Integer, default=0) # 0=Pending, 1=Approved
     created_at = Column(DateTime, server_default=func.now())
+
+
+# ── AI Logging ───────────────────────────────────────────────────────────────
+
+class AILog(Base):
+    """Tracks every AI inference: which model was used, latency, and online/offline status."""
+    __tablename__ = "ai_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    feature = Column(String, nullable=False)   # e.g. "ask_tutor", "study_plan", "mcq_gen"
+    prompt = Column(Text, nullable=True)        # First 1000 chars of prompt
+    response = Column(Text, nullable=True)      # First 2000 chars of response
+    model_used = Column(String, nullable=False) # e.g. "Gemini 1.5 Flash", "Qwen2.5-7B"
+    is_online = Column(Integer, nullable=False) # 1 = online cloud, 0 = local LLM
+    latency_ms = Column(Integer, nullable=True) # Response time in milliseconds
+    created_at = Column(DateTime, server_default=func.now())
