@@ -76,3 +76,6 @@ node_modules/
 .vscode/settings.json
 *.swp
 *.swo
+
+# ── AI / ML ───────────────────────────────────────────────────────────────────
+backend/ai
