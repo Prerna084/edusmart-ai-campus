@@ -7,6 +7,7 @@ Fallback Hierarchy (strict priority order):
   2. Fallback 2  → Mistral 7B                 (reasoning / logic tasks)
   3. Fallback 3  → Phi-3.5 Mini               (lightweight emergency model)
   4. Fallback 4  → Llama 3.1 8B (quantized)   (final safety fallback)
+  5. Static      → Pre-built template          (always available, offline)
 
 Switching is fully automatic and invisible to the user. Every inference is
 logged to the `ai_logs` table so admins can audit which model was used.
@@ -23,6 +24,14 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 load_dotenv()
+
+# Try to import the official Google Generative AI SDK (preferred over raw HTTP)
+try:
+    import google.generativeai as genai
+    _GENAI_AVAILABLE = True
+except ImportError:
+    _GENAI_AVAILABLE = False
+    print("⚠️  google-generativeai SDK not installed; falling back to raw httpx for Gemini.")
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 GOOGLE_API_KEY: Optional[str] = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -114,14 +123,91 @@ class AIService:
                 print(f"⚠️  [{feature}] {model_name} failed: {last_error[:120]}")
                 continue   # try next level
 
-        # All levels exhausted
+        # All cloud/local levels exhausted — use static template as last resort
         latency = int((time.time() - start) * 1000)
-        print(f"❌ [{feature}] All AI models unavailable after {latency}ms")
+        print(f"⚠️  [{feature}] All AI models unavailable after {latency}ms — using static fallback")
+        static = AIService._static_fallback(feature, prompt)
+        if static:
+            AIService._log(db, feature, prompt, static, "Static Template", False, latency)
+            return {
+                "response":   static,
+                "model":      "Static Template (AI unavailable)",
+                "is_online":  False,
+                "latency_ms": latency,
+            }
+        # No static fallback for this feature — surface error clearly
         return {
-            "error":      "All AI models are currently unavailable.",
+            "error":      "All AI models are currently unavailable. Please set GOOGLE_API_KEY in the server environment.",
             "last_error": last_error,
             "status":     "offline",
         }
+
+    @staticmethod
+    def _static_fallback(feature: str, prompt: str) -> Optional[str]:
+        """
+        Returns a hardcoded-but-useful JSON string for known features when
+        every AI tier is exhausted.  Returns None for unknown features.
+        """
+        if feature == "study_plan":
+            # Extract subject name from prompt if possible
+            import re
+            m = re.search(r"subject '(.+?)'", prompt)
+            subject = m.group(1) if m else "the Subject"
+            plan = [
+                {
+                    "week": 1,
+                    "title": f"Week 1: Foundations of {subject}",
+                    "topics": [
+                        "Introduction and course overview",
+                        "Core concepts and terminology",
+                        "Historical context and motivation",
+                    ],
+                    "objective": f"Build a solid foundation for {subject} by understanding its scope, key terminology, and real-world significance.",
+                },
+                {
+                    "week": 2,
+                    "title": f"Week 2: Core Principles of {subject}",
+                    "topics": [
+                        "Fundamental theories and models",
+                        "Problem-solving techniques",
+                        "Worked examples and case studies",
+                    ],
+                    "objective": f"Apply the fundamental principles of {subject} to solve structured problems with growing confidence.",
+                },
+                {
+                    "week": 3,
+                    "title": f"Week 3: Advanced Topics & Revision",
+                    "topics": [
+                        "Advanced applications",
+                        "Common pitfalls and best practices",
+                        "End-of-unit review and mock test",
+                    ],
+                    "objective": f"Consolidate understanding of {subject}, tackle advanced problems, and prepare for assessment.",
+                },
+            ]
+            return json.dumps(plan)
+
+        if feature == "mcq_gen":
+            fallback_mcqs = [
+                {
+                    "question": "Which of the following best describes the primary goal of this subject?",
+                    "options": [
+                        "To memorize definitions",
+                        "To understand and apply core concepts",
+                        "To read textbooks only",
+                        "To avoid practical work",
+                    ],
+                    "correct_index": 1,
+                },
+                {
+                    "question": "A structured problem-solving approach typically starts with:",
+                    "options": ["Writing code immediately", "Defining the problem clearly", "Guessing the answer", "Skipping to the solution"],
+                    "correct_index": 1,
+                },
+            ]
+            return json.dumps(fallback_mcqs)
+
+        return None  # No static fallback for this feature
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -132,6 +218,35 @@ class AIService:
         if not GOOGLE_API_KEY:
             raise RuntimeError("GOOGLE_API_KEY / GEMINI_API_KEY not configured")
 
+        # Prefer official SDK when available — better error messages & retry logic
+        if _GENAI_AVAILABLE:
+            return await AIService._call_gemini_sdk(prompt, system, max_tokens, temperature)
+        return await AIService._call_gemini_http(prompt, system, max_tokens, temperature)
+
+    @staticmethod
+    async def _call_gemini_sdk(
+        prompt: str, system: str, max_tokens: int, temperature: float
+    ) -> str:
+        """Call Gemini via the official google-generativeai SDK (async wrapper)."""
+        genai.configure(api_key=GOOGLE_API_KEY)
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            system_instruction=system,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=temperature,
+            ),
+        )
+        # Run synchronous SDK call in a thread so we don't block the event loop
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, lambda: model.generate_content(prompt))
+        return response.text
+
+    @staticmethod
+    async def _call_gemini_http(
+        prompt: str, system: str, max_tokens: int, temperature: float
+    ) -> str:
+        """Fallback: call Gemini via raw HTTP when SDK is not installed."""
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"

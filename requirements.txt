@@ -10,3 +10,4 @@ pydantic
 starlette
 httpx
 python-dotenv
+google-generativeai

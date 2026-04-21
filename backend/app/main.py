@@ -1074,40 +1074,6 @@ def get_student_test_results(user_id: int, db: Session = Depends(get_db)):
             "attempts": attempts_map.get(r.test_id, 0)
         } for r in results
     ]
-    
-    return [
-        {
-            "id": r.id,
-            "student_name": r.student_name,
-            "topic": r.test_topic,
-            "score": r.score,
-            "total_questions": r.total_questions,
-            "completed_at": r.completed_at.isoformat() if r.completed_at else None
-        }
-        for r in results
-    ]
-
-@app.get("/student/{user_id}/tests/results")
-def get_personal_test_results(user_id: int, db: Session = Depends(get_db)):
-    """
-    Fetch all attempts by a specific student.
-    Returns array mapping test_id -> count of attempts to verify lock statuses.
-    """
-    from sqlalchemy import func
-    results = (
-        db.query(TestResult.test_id, func.count(TestResult.id).label("attempts"))
-        .filter(TestResult.user_id == user_id)
-        .group_by(TestResult.test_id)
-        .all()
-    )
-    return [{"test_id": r.test_id, "attempts": r.attempts} for r in results]
-
-
-if __name__ == "__main__":
-    import uvicorn
-    # Make sure to run it matching your module structure or directory.
-    # Uvicorn looks for app/main.py if you run from the root.
-    uvicorn.run("app.main:app", host="0.0.0.0", port=10000)
 @app.get("/teachers/{teacher_id}/subjects", response_model=list[schemas.TeacherSubjectOut])
 def get_teacher_subjects(teacher_id: int, db: Session = Depends(get_db)):
     assignments = db.query(TeacherSubject, Subject.title).join(Subject, TeacherSubject.subject_id == Subject.id).filter(TeacherSubject.teacher_id == teacher_id).all()
@@ -1245,3 +1211,8 @@ def get_ai_logs(limit: int = 50, db: Session = Depends(get_db)):
 @app.get("/teachers/subjects/{assignment_id}/plans", response_model=list[schemas.WeeklyStudyPlanOut])
 def get_study_plans(assignment_id: int, db: Session = Depends(get_db)):
     return db.query(WeeklyStudyPlan).filter(WeeklyStudyPlan.teacher_subject_id == assignment_id).order_by(WeeklyStudyPlan.week_number).all()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=10000)
