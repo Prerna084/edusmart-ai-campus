@@ -61,17 +61,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // Update profile provider with user data
       final userProfile = UserProfile(
-        name: data['name'] ?? '',
-        email: profileData['email'] ?? '',
-        phone: profileData['phone'] ?? '',
-        userId: data['user_id'].toString(),
-        collegeId: profileData['college_id'] ?? profileData['teacher_reg_no'] ?? '',
-        department: profileData['department'] ?? '',
-        year: profileData['year'] ?? '',
-        batch: profileData['batch'] ?? '',
-        semester: profileData['semester'] ?? '',
-        section: profileData['section'] ?? '',
-        role: data['role'] ?? 'student',
+        name: data['name']?.toString() ?? '',
+        email: profileData['email']?.toString() ?? '',
+        phone: profileData['phone']?.toString() ?? '',
+        userId: data['user_id']?.toString() ?? '',
+        collegeId: (profileData['college_id'] ?? profileData['teacher_reg_no'])?.toString() ?? '',
+        department: profileData['department']?.toString() ?? '',
+        year: profileData['year']?.toString() ?? '',
+        batch: profileData['batch']?.toString() ?? '',
+        semester: profileData['semester']?.toString() ?? '',
+        section: profileData['section']?.toString() ?? '',
+        role: data['role']?.toString() ?? 'student',
       );
 
       await ref.read(profileProvider.notifier).updateProfile(userProfile);
