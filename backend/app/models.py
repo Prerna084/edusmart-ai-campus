@@ -8,9 +8,9 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
-    password_hash = Column(String, nullable=True)
     role = Column(String, default="student") # roles: admin, teacher, student
     face_encoding = Column(String, nullable=True)  # Stored as JSON string
+    college_reg = Column(String, unique=True, nullable=True) # Mapped to student_profiles.college_id or teacher_profiles.teacher_reg_no
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 class Attendance(Base):
@@ -40,6 +40,8 @@ class StudentProfile(Base):
     batch = Column(String, nullable=True)
     section = Column(String, nullable=True)
     college_id = Column(String, unique=True, nullable=True)
+    batch_roll = Column(String, nullable=True)
+    password_hash = Column(String, nullable=True)
 
 
 # ── Syllabus System ─────────────────────────────────────────────────────────
@@ -117,6 +119,16 @@ class TeacherProfile(Base):
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     department = Column(String, nullable=True)
     designation = Column(String, nullable=True) # e.g. Assistant Professor
+    teacher_reg_no = Column(String, unique=True, nullable=True)
+    password_hash = Column(String, nullable=True)
+
+class AdminProfile(Base):
+    """Profile for system administrators."""
+    __tablename__ = "admin_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
 
 class TeacherSubject(Base):
     """Maps teachers to subjects with specific batch/section context."""

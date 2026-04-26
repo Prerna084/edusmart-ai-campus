@@ -48,6 +48,7 @@ class StudentRegisterRequest(BaseModel):
     batch: Optional[str] = None
     semester: Optional[str] = None
     section: Optional[str] = None
+    college_id: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -71,6 +72,7 @@ class TeacherRegisterRequest(BaseModel):
     password: str
     department: str
     designation: Optional[str] = "Assistant Professor"
+    teacher_reg_no: Optional[str] = None
 
 class TeacherSubjectOut(BaseModel):
     id: int

@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
-from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic, ScheduledTest, TestResult, TeacherProfile, TeacherSubject, WeeklyStudyPlan
+from app.models import Attendance, User, StudentProfile, Subject, SyllabusModule, Topic, ScheduledTest, TestResult, TeacherProfile, TeacherSubject, WeeklyStudyPlan, AdminProfile
 from app import schemas
 from app.face_engine import encode_face, find_best_match
 import json
@@ -46,7 +46,7 @@ with engine.connect() as conn:
 
     for col, ctype in [
         ("email", "VARCHAR UNIQUE"),
-        ("password_hash", "VARCHAR"),
+        ("college_reg", "VARCHAR UNIQUE"),
         ("name", "VARCHAR"),
         ("role", "VARCHAR DEFAULT 'student'"),
         ("face_encoding", "TEXT"),
@@ -76,9 +76,26 @@ with engine.connect() as conn:
         ("semester", "VARCHAR"),
         ("batch", "VARCHAR"),
         ("section", "VARCHAR"),
-        ("college_id", "VARCHAR UNIQUE")
+        ("college_id", "VARCHAR UNIQUE"),
+        ("batch_roll", "VARCHAR"),
+        ("password_hash", "VARCHAR")
     ]:
         safe_add_column("student_profiles", col, ctype)
+
+    # --- Teacher Profile table ---
+    for col, ctype in [
+        ("department", "VARCHAR"),
+        ("designation", "VARCHAR"),
+        ("teacher_reg_no", "VARCHAR UNIQUE"),
+        ("password_hash", "VARCHAR")
+    ]:
+        safe_add_column("teacher_profiles", col, ctype)
+
+    # --- Admin Profile table ---
+    for col, ctype in [
+        ("password_hash", "VARCHAR")
+    ]:
+        safe_add_column("admin_profiles", col, ctype)
 
     # --- Scheduled Test table ---
     for col, ctype in [
@@ -145,16 +162,29 @@ async def lifespan(app: FastAPI):
             if admin:
                 admin.role = 'admin'
                 db.commit()
+                # Ensure AdminProfile exists
+                admin_profile = db.query(AdminProfile).filter(AdminProfile.user_id == admin.id).first()
+                if not admin_profile:
+                    admin_profile = AdminProfile(user_id=admin.id, password_hash="admin123")
+                    db.add(admin_profile)
+                    db.commit()
                 print(f"👑 Promoted {default_email} to Admin.")
             else:
                 # Create default admin from scratch
                 new_admin = User(
                     name="System Admin",
                     email=default_email,
-                    password_hash="admin123", # default password
                     role="admin"
                 )
                 db.add(new_admin)
+                db.commit()
+                db.refresh(new_admin)
+                
+                new_admin_profile = AdminProfile(
+                    user_id=new_admin.id,
+                    password_hash="admin123"
+                )
+                db.add(new_admin_profile)
                 db.commit()
                 print(f"👑 Created default Admin: {default_email}")
     finally:
@@ -195,7 +225,8 @@ def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends
         new_user = User(
             name=data.name,
             email=data.email,
-            password_hash=data.password # Mock hashing for simplicity
+            role="student",
+            college_reg=data.college_id
         )
         db.add(new_user)
         db.commit()
@@ -205,6 +236,8 @@ def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends
         profile = StudentProfile(
             user_id=new_user.id,
             email=data.email,
+            password_hash=data.password,
+            college_id=data.college_id,
             batch=data.batch,
             semester=data.semester,
             section=data.section
@@ -226,27 +259,58 @@ def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends
 
 @app.post("/auth/login")
 def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email).first()
-    if not user or user.password_hash != data.password:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
-    
-    return {
-        "user_id": user.id,
-        "name": user.name,
-        "role": user.role,
-        "profile": {
-            "email": user.email,
-            "phone": profile.phone if profile else "",
-            "department": profile.department if profile else "",
-            "year": profile.year if profile else "",
-            "semester": profile.semester if profile else "",
-            "batch": profile.batch if profile else "",
-            "section": profile.section if profile else "",
-            "college_id": profile.college_id if profile else "",
+    # 1. Check Student Profile
+    student_profile = db.query(StudentProfile).filter(StudentProfile.email == data.email).first()
+    if student_profile:
+        if student_profile.password_hash != data.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        user = db.query(User).filter(User.id == student_profile.user_id).first()
+        return {
+            "user_id": user.id,
+            "name": user.name,
+            "role": user.role,
+            "profile": {
+                "email": user.email,
+                "phone": student_profile.phone if student_profile else "",
+                "department": student_profile.department if student_profile else "",
+                "year": student_profile.year if student_profile else "",
+                "semester": student_profile.semester if student_profile else "",
+                "batch": student_profile.batch if student_profile else "",
+                "section": student_profile.section if student_profile else "",
+                "college_id": student_profile.college_id if student_profile else "",
+            }
         }
-    }
+        
+    # 2. Check Teacher Profile
+    user = db.query(User).filter(User.email == data.email).first()
+    if user:
+        if user.role == "teacher":
+            teacher_profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == user.id).first()
+            if teacher_profile and teacher_profile.password_hash == data.password:
+                return {
+                    "user_id": user.id,
+                    "name": user.name,
+                    "role": user.role,
+                    "profile": {
+                        "email": user.email,
+                        "department": teacher_profile.department,
+                        "designation": teacher_profile.designation,
+                        "teacher_reg_no": teacher_profile.teacher_reg_no
+                    }
+                }
+        elif user.role == "admin":
+            admin_profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
+            if admin_profile and admin_profile.password_hash == data.password:
+                return {
+                    "user_id": user.id,
+                    "name": user.name,
+                    "role": user.role,
+                    "profile": {
+                        "email": user.email
+                    }
+                }
+
+    raise HTTPException(status_code=401, detail="Invalid email or password")
 
 @app.post("/auth/register-teacher")
 def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends(get_db)):
@@ -258,8 +322,8 @@ def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends
         new_user = User(
             name=data.name,
             email=data.email,
-            password_hash=data.password,
-            role="teacher"
+            role="teacher",
+            college_reg=data.teacher_reg_no
         )
         db.add(new_user)
         db.commit()
@@ -267,8 +331,10 @@ def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends
         
         profile = TeacherProfile(
             user_id=new_user.id,
+            password_hash=data.password,
             department=data.department,
-            designation=data.designation
+            designation=data.designation,
+            teacher_reg_no=data.teacher_reg_no
         )
         db.add(profile)
         db.commit()
@@ -279,23 +345,32 @@ def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends
         raise
     except Exception as e:
         db.rollback()
+        if "UNIQUE constraint failed" in str(e) or "duplicate key" in str(e):
+             raise HTTPException(status_code=400, detail="Email or Teacher Reg No already exists")
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 @app.post("/auth/forgot-password")
 def forgot_password(data: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user:
-        # Silently fail or inform? User says: "If the email exists..."
         raise HTTPException(status_code=404, detail="Email not found")
     
-    # Generate random password
     import random
     import string
     new_pwd = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    user.password_hash = new_pwd
+    
+    if user.role == "student":
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
+        if profile: profile.password_hash = new_pwd
+    elif user.role == "teacher":
+        profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == user.id).first()
+        if profile: profile.password_hash = new_pwd
+    elif user.role == "admin":
+        profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
+        if profile: profile.password_hash = new_pwd
+
     db.commit()
     
-    # Mock sending email
     return {"message": "New password generated and sent to email", "temp_password": new_pwd}
 
 @app.post("/students/{user_id}/college-id")
@@ -312,6 +387,12 @@ def set_college_id(user_id: int, data: schemas.UpdateCollegeIdRequest, db: Sessi
         raise HTTPException(status_code=403, detail="Student ID is already set and cannot be changed")
     
     profile.college_id = data.college_id
+    
+    # Also link to users table for face recognition
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.college_reg = data.college_id
+        
     db.commit()
     return {"message": "Student ID set successfully"}
 
@@ -322,6 +403,11 @@ def reset_college_id(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Student profile not found")
     
     profile.college_id = None
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.college_reg = None
+        
     db.commit()
     return {"message": "Student ID cleared successfully"}
 
@@ -331,10 +417,27 @@ def change_password(user_id: int, data: schemas.UpdatePasswordRequest, db: Sessi
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if user.password_hash != data.old_password:
+    is_valid = False
+    
+    if user.role == "student":
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == user_id).first()
+        if profile and profile.password_hash == data.old_password:
+            profile.password_hash = data.new_password
+            is_valid = True
+    elif user.role == "teacher":
+        profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == user_id).first()
+        if profile and profile.password_hash == data.old_password:
+            profile.password_hash = data.new_password
+            is_valid = True
+    elif user.role == "admin":
+        profile = db.query(AdminProfile).filter(AdminProfile.user_id == user_id).first()
+        if profile and profile.password_hash == data.old_password:
+            profile.password_hash = data.new_password
+            is_valid = True
+
+    if not is_valid:
         raise HTTPException(status_code=401, detail="Incorrect old password")
     
-    user.password_hash = data.new_password
     db.commit()
     return {"message": "Password changed successfully"}
 
