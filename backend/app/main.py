@@ -482,86 +482,92 @@ async def register_user(
       - If the name already exists with a different face → updates their encoding (no new row).
       - Only inserts a new row when the face AND name are both genuinely new.
     """
-    # Reject default Swagger 'string' name
-    if name.strip().lower() == "string":
-        raise HTTPException(
-            status_code=400,
-            detail="Please provide a real name, not 'string'.",
-        )
+    try:
+        # Reject default Swagger 'string' name
+        if name.strip().lower() == "string":
+            raise HTTPException(
+                status_code=400,
+                detail="Please provide a real name, not 'string'.",
+            )
 
+        encoding = encode_face(file.file)
 
+        if encoding is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Could not process the uploaded file or no face found. "
+                    "Please upload a clear face photo (JPEG or PNG). "
+                    f"Received filename: '{file.filename}', content-type: '{file.content_type}'."
+                ),
+            )
 
-    encoding = encode_face(file.file)
-
-    if encoding is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Could not process the uploaded file or no face found. "
-                "Please upload a clear face photo (JPEG or PNG). "
-                f"Received filename: '{file.filename}', content-type: '{file.content_type}'."
-            ),
-        )
-
-    # ── 0. Linked ID check (High Priority) ──────────────────────────────────
-    if user_id is not None:
-        user_to_update = db.query(User).filter(User.id == user_id).first()
-        if not user_to_update:
-            raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
-        
-        user_to_update.face_encoding = json.dumps(encoding.tolist())
-        db.commit()
-        db.refresh(user_to_update)
-        return {
-            "message": "Face linked to system profile successfully.",
-            "already_existed": True,
-            "user_id": user_to_update.id,
-            "name": user_to_update.name,
-        }
-
-    # ── 1. Face-duplicate check ───────────────────────────────────────────────
-    existing_users = db.query(User).filter(User.face_encoding != None).all()
-    if existing_users:
-        known_encodings = [np.array(json.loads(u.face_encoding)) for u in existing_users]
-        matched = find_best_match(known_encodings, encoding, tolerance=0.5)
-        if matched is not None:
-            match_index, distance = matched
-            existing = existing_users[match_index]
+        # ── 0. Linked ID check (High Priority) ──────────────────────────────────
+        if user_id is not None:
+            user_to_update = db.query(User).filter(User.id == user_id).first()
+            if not user_to_update:
+                raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
+            
+            user_to_update.face_encoding = json.dumps(encoding.tolist())
+            db.commit()
+            db.refresh(user_to_update)
             return {
-                "message": "Already registered — face matched existing record.",
+                "message": "Face linked to system profile successfully.",
                 "already_existed": True,
-                "user_id": existing.id,
-                "name": existing.name,
-                "match_distance": round(distance, 4),
+                "user_id": user_to_update.id,
+                "name": user_to_update.name,
             }
 
-    # ── 2. Name-duplicate check ───────────────────────────────────────────────
-    name_clean = name.strip()
-    existing_by_name = db.query(User).filter(User.name == name_clean).first()
-    if existing_by_name:
-        # Same name, different face → update encoding so they don't get locked out
-        existing_by_name.face_encoding = json.dumps(encoding.tolist())
+        # ── 1. Face-duplicate check ───────────────────────────────────────────────
+        existing_users = db.query(User).filter(User.face_encoding != None).all()
+        if existing_users:
+            known_encodings = [np.array(json.loads(u.face_encoding)) for u in existing_users]
+            matched = find_best_match(known_encodings, encoding, tolerance=0.5)
+            if matched is not None:
+                match_index, distance = matched
+                existing = existing_users[match_index]
+                return {
+                    "message": "Already registered — face matched existing record.",
+                    "already_existed": True,
+                    "user_id": existing.id,
+                    "name": existing.name,
+                    "match_distance": round(distance, 4),
+                }
+
+        # ── 2. Name-duplicate check ───────────────────────────────────────────────
+        name_clean = name.strip()
+        existing_by_name = db.query(User).filter(User.name == name_clean).first()
+        if existing_by_name:
+            # Same name, different face → update encoding so they don't get locked out
+            existing_by_name.face_encoding = json.dumps(encoding.tolist())
+            db.commit()
+            db.refresh(existing_by_name)
+            return {
+                "message": "Name already registered — face encoding updated.",
+                "already_existed": True,
+                "user_id": existing_by_name.id,
+                "name": existing_by_name.name,
+            }
+
+        # ── 3. Genuinely new — insert ─────────────────────────────────────────────
+        new_user = User(name=name_clean, face_encoding=json.dumps(encoding.tolist()))
+        db.add(new_user)
         db.commit()
-        db.refresh(existing_by_name)
+        db.refresh(new_user)
+
         return {
-            "message": "Name already registered — face encoding updated.",
-            "already_existed": True,
-            "user_id": existing_by_name.id,
-            "name": existing_by_name.name,
+            "message": "User registered successfully",
+            "already_existed": False,
+            "user_id": new_user.id,
+            "name": new_user.name,
         }
-
-    # ── 3. Genuinely new — insert ─────────────────────────────────────────────
-    new_user = User(name=name_clean, face_encoding=json.dumps(encoding.tolist()))
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return {
-        "message": "User registered successfully",
-        "already_existed": False,
-        "user_id": new_user.id,
-        "name": new_user.name,
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_msg = f"Internal error during registration: {str(e)} | Trace: {traceback.format_exc()}"
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/admin/deduplicate")
