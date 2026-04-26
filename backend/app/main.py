@@ -517,12 +517,15 @@ async def register_user(
             if not user_to_update:
                 raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
             
+            if not user_to_update.name and name.strip() and name.strip().lower() != "string":
+                user_to_update.name = name.strip()
+            
             user_to_update.face_encoding = json.dumps(encoding.tolist())
             db.commit()
             db.refresh(user_to_update)
             return {
                 "message": "Face linked to system profile successfully.",
-                "already_existed": True,
+                "already_existed": False,
                 "user_id": user_to_update.id,
                 "name": user_to_update.name,
             }
@@ -536,7 +539,7 @@ async def register_user(
                 match_index, distance = matched
                 existing = existing_users[match_index]
                 return {
-                    "message": "Already registered — face matched existing record.",
+                    "message": f"Already registered as {existing.name} (ID: {existing.id}). No duplicate created.",
                     "already_existed": True,
                     "user_id": existing.id,
                     "name": existing.name,
@@ -552,7 +555,7 @@ async def register_user(
             db.commit()
             db.refresh(existing_by_name)
             return {
-                "message": "Name already registered — face encoding updated.",
+                "message": f"Name already registered — face encoding updated for {existing_by_name.name} (ID: {existing_by_name.id}).",
                 "already_existed": True,
                 "user_id": existing_by_name.id,
                 "name": existing_by_name.name,

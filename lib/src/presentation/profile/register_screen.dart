@@ -135,9 +135,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ref.invalidate(profileProvider);
       }
 
-      final message = alreadyExisted
+      final message = data['message'] ?? (alreadyExisted
           ? 'Already registered as ${data['name']} (ID: ${data['user_id']}). No duplicate created.'
-          : 'Face registered for ${data['name']} (ID: ${data['user_id']}).';
+          : 'Face registered for ${data['name']} (ID: ${data['user_id']}).');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
