@@ -53,6 +53,15 @@ with engine.connect() as conn:
         ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     ]:
         safe_add_column("users", col, ctype)
+        
+    # Ensure face_encoding is TEXT (fix for older schemas where it was Float/Double)
+    if is_postgres:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ALTER COLUMN face_encoding TYPE TEXT USING face_encoding::text"))
+                conn.commit()
+        except Exception as e:
+            print(f"ℹ️ Could not alter face_encoding: {e}")
 
     # ── Cleanup Legacy Constraints ───────────────────────────────────────────
     try:
