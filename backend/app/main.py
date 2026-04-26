@@ -259,58 +259,65 @@ def register_student(data: schemas.StudentRegisterRequest, db: Session = Depends
 
 @app.post("/auth/login")
 def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    # 1. Check Student Profile
-    student_profile = db.query(StudentProfile).filter(StudentProfile.email == data.email).first()
-    if student_profile:
-        if student_profile.password_hash != data.password:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        user = db.query(User).filter(User.id == student_profile.user_id).first()
-        return {
-            "user_id": user.id,
-            "name": user.name,
-            "role": user.role,
-            "profile": {
-                "email": user.email,
-                "phone": student_profile.phone if student_profile else "",
-                "department": student_profile.department if student_profile else "",
-                "year": student_profile.year if student_profile else "",
-                "semester": student_profile.semester if student_profile else "",
-                "batch": student_profile.batch if student_profile else "",
-                "section": student_profile.section if student_profile else "",
-                "college_id": student_profile.college_id if student_profile else "",
+    try:
+        # 1. Check Student Profile
+        student_profile = db.query(StudentProfile).filter(StudentProfile.email == data.email).first()
+        if student_profile:
+            if student_profile.password_hash != data.password:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            user = db.query(User).filter(User.id == student_profile.user_id).first()
+            return {
+                "user_id": user.id,
+                "name": user.name,
+                "role": user.role,
+                "profile": {
+                    "email": user.email,
+                    "phone": student_profile.phone if student_profile else "",
+                    "department": student_profile.department if student_profile else "",
+                    "year": student_profile.year if student_profile else "",
+                    "semester": student_profile.semester if student_profile else "",
+                    "batch": student_profile.batch if student_profile else "",
+                    "section": student_profile.section if student_profile else "",
+                    "college_id": student_profile.college_id if student_profile else "",
+                }
             }
-        }
-        
-    # 2. Check Teacher Profile
-    user = db.query(User).filter(User.email == data.email).first()
-    if user:
-        if user.role == "teacher":
-            teacher_profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == user.id).first()
-            if teacher_profile and teacher_profile.password_hash == data.password:
-                return {
-                    "user_id": user.id,
-                    "name": user.name,
-                    "role": user.role,
-                    "profile": {
-                        "email": user.email,
-                        "department": teacher_profile.department,
-                        "designation": teacher_profile.designation,
-                        "teacher_reg_no": teacher_profile.teacher_reg_no
+            
+        # 2. Check Teacher Profile
+        user = db.query(User).filter(User.email == data.email).first()
+        if user:
+            if user.role == "teacher":
+                teacher_profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == user.id).first()
+                if teacher_profile and teacher_profile.password_hash == data.password:
+                    return {
+                        "user_id": user.id,
+                        "name": user.name,
+                        "role": user.role,
+                        "profile": {
+                            "email": user.email,
+                            "department": teacher_profile.department,
+                            "designation": teacher_profile.designation,
+                            "teacher_reg_no": teacher_profile.teacher_reg_no
+                        }
                     }
-                }
-        elif user.role == "admin":
-            admin_profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
-            if admin_profile and admin_profile.password_hash == data.password:
-                return {
-                    "user_id": user.id,
-                    "name": user.name,
-                    "role": user.role,
-                    "profile": {
-                        "email": user.email
+            elif user.role == "admin":
+                admin_profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
+                if admin_profile and admin_profile.password_hash == data.password:
+                    return {
+                        "user_id": user.id,
+                        "name": user.name,
+                        "role": user.role,
+                        "profile": {
+                            "email": user.email
+                        }
                     }
-                }
 
-    raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/auth/register-teacher")
 def register_teacher(data: schemas.TeacherRegisterRequest, db: Session = Depends(get_db)):
