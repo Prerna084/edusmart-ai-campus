@@ -53,6 +53,19 @@ with engine.connect() as conn:
         ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     ]:
         safe_add_column("users", col, ctype)
+
+    # ── Cleanup Legacy Constraints ───────────────────────────────────────────
+    try:
+        if is_postgres:
+            conn.execute(text("ALTER TABLE users ALTER COLUMN student_reg DROP NOT NULL"))
+            conn.commit()
+            print("✅ Dropped NOT NULL constraint from legacy users.student_reg")
+    except Exception:
+        try:
+            conn.rollback()
+        except:
+            pass
+
             
     # --- Student Profile table ---
     for col, ctype in [
