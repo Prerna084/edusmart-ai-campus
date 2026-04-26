@@ -64,23 +64,24 @@ with engine.connect() as conn:
             print(f"ℹ️ Could not alter face_encoding: {e}")
 
     # ── Cleanup Legacy Constraints ───────────────────────────────────────────
-    try:
-        if is_postgres:
-            conn.execute(text("ALTER TABLE users ALTER COLUMN student_reg DROP NOT NULL"))
-            conn.commit()
-            print("✅ Dropped NOT NULL constraint from legacy users.student_reg")
-            
-            # Fix foreign key pointing to users_archive
-            conn.execute(text("ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_user_id_fkey"))
-            conn.execute(text("ALTER TABLE attendance ADD CONSTRAINT attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"))
-            conn.commit()
-            print("✅ Fixed attendance_user_id_fkey constraint")
-    except Exception as e:
+    if is_postgres:
         try:
-            conn.rollback()
-        except:
-            pass
-        print(f"ℹ️ Legacy constraint cleanup skipped: {e}")
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ALTER COLUMN student_reg DROP NOT NULL"))
+                conn.commit()
+                print("✅ Dropped NOT NULL constraint from legacy users.student_reg")
+        except Exception as e:
+            print(f"ℹ️ legacy student_reg cleanup skipped: {e}")
+            
+        try:
+            with engine.connect() as conn:
+                # Fix foreign key pointing to users_archive
+                conn.execute(text("ALTER TABLE public.attendance DROP CONSTRAINT IF EXISTS attendance_user_id_fkey"))
+                conn.execute(text("ALTER TABLE public.attendance ADD CONSTRAINT attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE"))
+                conn.commit()
+                print("✅ Fixed attendance_user_id_fkey constraint")
+        except Exception as e:
+            print(f"ℹ️ attendance fkey cleanup skipped: {e}")
     # --- Student Profile table ---
     for col, ctype in [
         ("email", "VARCHAR"),
