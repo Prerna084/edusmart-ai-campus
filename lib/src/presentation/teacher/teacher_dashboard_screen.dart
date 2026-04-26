@@ -5,6 +5,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/network/dio_client.dart';
 import '../profile/profile_provider.dart';
 import 'study_plan_screen.dart';
+import '../dashboard/attendance_dashboard_screen.dart';
+import '../dashboard/admin_assessments_screen.dart';
 
 class TeacherDashboardScreen extends ConsumerStatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -16,6 +18,7 @@ class TeacherDashboardScreen extends ConsumerStatefulWidget {
 class _TeacherDashboardScreenState extends ConsumerState<TeacherDashboardScreen> {
   bool _isLoading = true;
   List<dynamic> _subjects = [];
+  int _currentIndex = 0;
 
   @override
   void initState() {
@@ -45,40 +48,76 @@ class _TeacherDashboardScreenState extends ConsumerState<TeacherDashboardScreen>
   Widget build(BuildContext context) {
     final profile = ref.watch(profileProvider).value;
 
+    final List<Widget> pages = [
+      _buildHomeView(profile),
+      const AttendanceDashboardScreen(isAdminMode: true, onAdminLogout: null),
+      const AdminAssessmentsScreen(),
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          _buildAppBar(profile),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader('Your Assigned Classes', Icons.class_outlined),
-                  const SizedBox(height: 16),
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_subjects.isEmpty)
-                    _buildEmptyState()
-                  else
-                    ..._subjects.map((s) => _buildSubjectCard(s)),
-                  const SizedBox(height: 32),
-                  _buildSectionHeader('Academic Tools', Icons.auto_awesome_outlined),
-                  const SizedBox(height: 16),
-                  _buildToolCard(
-                    'AI Syllabus Planner',
-                    'Convert your syllabus into a weekly teaching roadmap.',
-                    Icons.psychology_outlined,
-                    () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a subject to generate plan.'))),
-                  ),
-                ],
-              ),
-            ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.primaryStart.withOpacity(0.2),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard, color: AppColors.primaryStart),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.videocam_outlined),
+            selectedIcon: Icon(Icons.videocam_rounded, color: AppColors.primaryStart),
+            label: 'Attendance',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment, color: AppColors.primaryStart),
+            label: 'Tests',
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHomeView(UserProfile? profile) {
+    return CustomScrollView(
+      slivers: [
+        _buildAppBar(profile),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionHeader('Your Assigned Classes', Icons.class_outlined),
+                const SizedBox(height: 16),
+                if (_isLoading)
+                  const Center(child: CircularProgressIndicator())
+                else if (_subjects.isEmpty)
+                  _buildEmptyState()
+                else
+                  ..._subjects.map((s) => _buildSubjectCard(s)),
+                const SizedBox(height: 32),
+                _buildSectionHeader('Academic Tools', Icons.auto_awesome_outlined),
+                const SizedBox(height: 16),
+                _buildToolCard(
+                  'AI Syllabus Planner',
+                  'Convert your syllabus into a weekly teaching roadmap.',
+                  Icons.psychology_outlined,
+                  () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a subject to generate plan.'))),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
