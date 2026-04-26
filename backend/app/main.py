@@ -307,17 +307,17 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
                             db.refresh(teacher_profile)
 
                     if teacher_profile.password_hash == data.password:
-                    return {
-                        "user_id": user.id,
-                        "name": user.name,
-                        "role": user.role,
-                        "profile": {
-                            "email": user.email,
-                            "department": teacher_profile.department,
-                            "designation": teacher_profile.designation,
-                            "teacher_reg_no": teacher_profile.teacher_reg_no
+                        return {
+                            "user_id": user.id,
+                            "name": user.name,
+                            "role": user.role,
+                            "profile": {
+                                "email": user.email,
+                                "department": teacher_profile.department,
+                                "designation": teacher_profile.designation,
+                                "teacher_reg_no": teacher_profile.teacher_reg_no
+                            }
                         }
-                    }
             elif user.role == "admin":
                 admin_profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
                 if admin_profile and admin_profile.password_hash == data.password:
