@@ -686,74 +686,74 @@ async def mark_attendance(
                 ),
             )
 
-        users_raw = db.query(User).filter(User.face_encoding != None).all()
-        if not users_raw:
-            raise HTTPException(status_code=404, detail="No registered users with face data found.")
+    users_raw = db.query(User).filter(User.face_encoding != None).all()
+    if not users_raw:
+        raise HTTPException(status_code=404, detail="No registered users with face data found.")
 
-        known_encodings = []
-        users = []
-        for u in users_raw:
-            try:
-                encoding = np.array(json.loads(u.face_encoding))
-                known_encodings.append(encoding)
-                users.append(u)
-            except Exception:
-                print(f"⚠️ Skipping corrupted face data for user ID {u.id}")
-                continue
+    known_encodings = []
+    users = []
+    for u in users_raw:
+        try:
+            encoding = np.array(json.loads(u.face_encoding))
+            known_encodings.append(encoding)
+            users.append(u)
+        except Exception:
+            print(f"⚠️ Skipping corrupted face data for user ID {u.id}")
+            continue
 
-        if not known_encodings:
-            raise HTTPException(status_code=404, detail="No valid face data found in database.")
+    if not known_encodings:
+        raise HTTPException(status_code=404, detail="No valid face data found in database.")
 
-        matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
+    matched = find_best_match(known_encodings, unknown_encoding, tolerance=0.5)
 
-        if matched is None:
-            raise HTTPException(status_code=404, detail="Face not recognized.")
+    if matched is None:
+        raise HTTPException(status_code=404, detail="Face not recognized.")
 
-        match_index, distance = matched
-        user = users[match_index]
-        today = date.today()
+    match_index, distance = matched
+    user = users[match_index]
+    today = date.today()
 
-        attendance = (
-            db.query(Attendance)
-            .filter(Attendance.user_id == user.id, Attendance.date == today)
-            .first()
+    attendance = (
+        db.query(Attendance)
+        .filter(Attendance.user_id == user.id, Attendance.date == today)
+        .first()
+    )
+
+    if attendance is None:
+        now = datetime.now()
+        attendance = Attendance(
+            user_id=user.id,
+            date=today,
+            time=now.time(),
+            status="Present"
         )
+        db.add(attendance)
+        db.commit()
+        db.refresh(attendance)
+        attendance_marked = True
+    else:
+        attendance_marked = False
 
-        if attendance is None:
-            now = datetime.now()
-            attendance = Attendance(
-                user_id=user.id,
-                date=today,
-                time=now.time(),
-                status="Present"
-            )
-            db.add(attendance)
-            db.commit()
-            db.refresh(attendance)
-            attendance_marked = True
-        else:
-            attendance_marked = False
-
-        return {
-            "message": "Attendance marked successfully" if attendance_marked else "Attendance already marked today",
-            "attendance_marked": attendance_marked,
-            "user": {
-                "id": user.id,
-                "name": user.name,
-            },
-            "match_distance": distance,
-            "attendance": {
-                "id": attendance.id,
-                "date": attendance.date.isoformat(),
-                "time": attendance.time.isoformat(),
-                "status": attendance.status,
-            },
-        }
+    return {
+        "message": "Attendance marked successfully" if attendance_marked else "Attendance already marked today",
+        "attendance_marked": attendance_marked,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+        },
+        "match_distance": distance,
+        "attendance": {
+            "id": attendance.id,
+            "date": attendance.date.isoformat(),
+            "time": attendance.time.isoformat(),
+            "status": attendance.status,
+        },
+    }
     except HTTPException:
         raise
     except Exception as e:
         import traceback
-        error_msg = f"Internal error during attendance: {str(e)} | Trace: {traceback.format_exc()}"
+        error_msg = f"Internal error in attendance: {str(e)} | Trace: {traceback.format_exc()}"
         print(error_msg)
         raise HTTPException(status_code=500, detail=str(e))
 

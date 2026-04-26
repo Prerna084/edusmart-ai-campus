@@ -11,6 +11,11 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/camera_utils.dart';
 import '../widgets/glass_container.dart';
 
+import 'dart:typed_data';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+
 class AttendanceScreen extends ConsumerStatefulWidget {
   const AttendanceScreen({super.key});
 
@@ -144,12 +149,30 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         _statusMessage = 'Scanning your face... Please hold still.';
       });
 
+      // Compress before upload to prevent server OOM
+      final Uint8List? compressed = await FlutterImageCompress.compressWithFile(
+        image.path,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 70,
+        format: CompressFormat.jpeg,
+      );
+
+      final File uploadFile;
+      if (compressed != null) {
+        final tmpDir = await getTemporaryDirectory();
+        final tmpPath = p.join(tmpDir.path, 'attendance_upload.jpg');
+        uploadFile = await File(tmpPath).writeAsBytes(compressed);
+      } else {
+        uploadFile = File(image.path); // fallback
+      }
+
       final dio = ref.read(dioProvider);
       final response = await dio.post<Map<String, dynamic>>(
         '/attendance/mark',
         data: FormData.fromMap({
           'file': await MultipartFile.fromFile(
-            image.path,
+            uploadFile.path,
             filename: 'face.jpg',
           ),
         }),
