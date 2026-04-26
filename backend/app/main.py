@@ -280,7 +280,7 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
                 "name": user.name,
                 "role": user.role,
                 "profile": {
-                    "email": user.email,
+                    "email": (student_profile.email if student_profile and student_profile.email else user.email) or "",
                     "phone": student_profile.phone if student_profile else "",
                     "department": student_profile.department if student_profile else "",
                     "year": student_profile.year if student_profile else "",
@@ -312,7 +312,7 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
                             "name": user.name,
                             "role": user.role,
                             "profile": {
-                                "email": user.email,
+                                "email": (teacher_profile.email if teacher_profile and getattr(teacher_profile, 'email', None) else user.email) or "",
                                 "department": teacher_profile.department,
                                 "designation": teacher_profile.designation,
                                 "teacher_reg_no": teacher_profile.teacher_reg_no
@@ -908,6 +908,7 @@ class StudentProfileSchema(BaseModel):
     year: str = ""
     semester: str = ""
     batch: str = ""
+    section: str = ""
 
 @app.get("/students")
 def get_all_students(db: Session = Depends(get_db)):
@@ -951,12 +952,13 @@ def get_student_profile(student_id: int, db: Session = Depends(get_db)):
     return {
         "id": user.id,
         "name": user.name,
-        "email": profile.email if profile else "",
+        "email": (profile.email if profile and profile.email else user.email) or "",
         "phone": profile.phone if profile else "",
         "department": profile.department if profile else "",
         "year": profile.year if profile else "",
         "semester": profile.semester if profile else "",
         "batch": profile.batch if profile else "",
+        "section": profile.section if profile else "",
     }
 
 
@@ -985,6 +987,7 @@ def update_student_profile(
     profile.year = data.year
     profile.semester = data.semester
     profile.batch = data.batch
+    profile.section = data.section
     db.commit()
     db.refresh(profile)
     return {"message": "Profile updated", "student_id": student_id}
