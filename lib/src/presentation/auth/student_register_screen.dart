@@ -18,6 +18,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
   final _batchController = TextEditingController();
   final _semesterController = TextEditingController();
   final _sectionController = TextEditingController();
+  final _collegeIdController = TextEditingController();
   bool _isLoading = false;
 
   @override
@@ -28,6 +29,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
     _batchController.dispose();
     _semesterController.dispose();
     _sectionController.dispose();
+    _collegeIdController.dispose();
     super.dispose();
   }
 
@@ -53,6 +55,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
         'batch': _batchController.text.trim(),
         'semester': _semesterController.text.trim(),
         'section': _sectionController.text.trim(),
+        'college_id': _collegeIdController.text.trim(),
       });
 
       if (mounted) {
@@ -103,8 +106,13 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
                     Expanded(child: _buildTextField(_semesterController, 'Semester', Icons.calendar_today)),
                   ],
                 ),
-                const SizedBox(height: 16),
-                _buildTextField(_sectionController, 'Section', Icons.layers),
+                Row(
+                  children: [
+                    Expanded(child: _buildTextField(_sectionController, 'Section', Icons.layers)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildTextField(_collegeIdController, 'College ID', Icons.badge)),
+                  ],
+                ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,

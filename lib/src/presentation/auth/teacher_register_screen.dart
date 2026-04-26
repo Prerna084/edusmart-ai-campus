@@ -18,6 +18,7 @@ class _TeacherRegisterScreenState extends ConsumerState<TeacherRegisterScreen> {
   final _passwordController = TextEditingController();
   final _deptController = TextEditingController();
   final _designationController = TextEditingController(text: 'Assistant Professor');
+  final _teacherRegController = TextEditingController();
   bool _isLoading = false;
 
   @override
@@ -27,6 +28,7 @@ class _TeacherRegisterScreenState extends ConsumerState<TeacherRegisterScreen> {
     _passwordController.dispose();
     _deptController.dispose();
     _designationController.dispose();
+    _teacherRegController.dispose();
     super.dispose();
   }
 
@@ -53,6 +55,7 @@ class _TeacherRegisterScreenState extends ConsumerState<TeacherRegisterScreen> {
         'password': password,
         'department': dept,
         'designation': desig,
+        'teacher_reg_no': _teacherRegController.text.trim(),
       });
 
       if (!mounted) return;
@@ -124,6 +127,8 @@ class _TeacherRegisterScreenState extends ConsumerState<TeacherRegisterScreen> {
                       _buildTextField(_deptController, 'Department', Icons.business_outlined),
                       const SizedBox(height: 16),
                       _buildTextField(_designationController, 'Designation', Icons.badge_outlined),
+                      const SizedBox(height: 16),
+                      _buildTextField(_teacherRegController, 'Teacher Reg. No', Icons.pin_outlined),
                       const SizedBox(height: 32),
                       SizedBox(
                         width: double.infinity,

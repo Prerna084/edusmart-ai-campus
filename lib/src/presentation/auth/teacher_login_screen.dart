@@ -54,7 +54,7 @@ class _TeacherLoginScreenState extends ConsumerState<TeacherLoginScreen> {
         email: profileData['email'] ?? '',
         phone: profileData['phone'] ?? '',
         userId: data['user_id'].toString(),
-        collegeId: profileData['college_id'] ?? '',
+        collegeId: profileData['college_id'] ?? profileData['teacher_reg_no'] ?? '',
         department: profileData['department'] ?? '',
         year: profileData['year'] ?? '',
         batch: profileData['batch'] ?? '',
