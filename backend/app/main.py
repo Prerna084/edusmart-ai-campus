@@ -57,30 +57,39 @@ with engine.connect() as conn:
     # Ensure face_encoding is TEXT (fix for older schemas where it was Float/Double)
     if is_postgres:
         try:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE users ALTER COLUMN face_encoding TYPE TEXT USING face_encoding::text"))
-                conn.commit()
+            conn.execute(text("ALTER TABLE users ALTER COLUMN face_encoding TYPE TEXT USING face_encoding::text"))
+            conn.commit()
         except Exception as e:
+            try:
+                conn.rollback()
+            except:
+                pass
             print(f"ℹ️ Could not alter face_encoding: {e}")
 
     # ── Cleanup Legacy Constraints ───────────────────────────────────────────
     if is_postgres:
         try:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE users ALTER COLUMN student_reg DROP NOT NULL"))
-                conn.commit()
-                print("✅ Dropped NOT NULL constraint from legacy users.student_reg")
+            conn.execute(text("ALTER TABLE users ALTER COLUMN student_reg DROP NOT NULL"))
+            conn.commit()
+            print("✅ Dropped NOT NULL constraint from legacy users.student_reg")
         except Exception as e:
+            try:
+                conn.rollback()
+            except:
+                pass
             print(f"ℹ️ legacy student_reg cleanup skipped: {e}")
             
         try:
-            with engine.connect() as conn:
-                # Fix foreign key pointing to users_archive
-                conn.execute(text("ALTER TABLE public.attendance DROP CONSTRAINT IF EXISTS attendance_user_id_fkey"))
-                conn.execute(text("ALTER TABLE public.attendance ADD CONSTRAINT attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE"))
-                conn.commit()
-                print("✅ Fixed attendance_user_id_fkey constraint")
+            # Fix foreign key pointing to users_archive
+            conn.execute(text("ALTER TABLE public.attendance DROP CONSTRAINT IF EXISTS attendance_user_id_fkey"))
+            conn.execute(text("ALTER TABLE public.attendance ADD CONSTRAINT attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE"))
+            conn.commit()
+            print("✅ Fixed attendance_user_id_fkey constraint")
         except Exception as e:
+            try:
+                conn.rollback()
+            except:
+                pass
             print(f"ℹ️ attendance fkey cleanup skipped: {e}")
     # --- Student Profile table ---
     for col, ctype in [

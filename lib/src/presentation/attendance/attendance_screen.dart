@@ -235,7 +235,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +320,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                   ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(height: 32),
               Center(
                 child: Text(
                   _matchedUserName == null
