@@ -69,13 +69,18 @@ with engine.connect() as conn:
             conn.execute(text("ALTER TABLE users ALTER COLUMN student_reg DROP NOT NULL"))
             conn.commit()
             print("✅ Dropped NOT NULL constraint from legacy users.student_reg")
-    except Exception:
+            
+            # Fix foreign key pointing to users_archive
+            conn.execute(text("ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_user_id_fkey"))
+            conn.execute(text("ALTER TABLE attendance ADD CONSTRAINT attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"))
+            conn.commit()
+            print("✅ Fixed attendance_user_id_fkey constraint")
+    except Exception as e:
         try:
             conn.rollback()
         except:
             pass
-
-            
+        print(f"ℹ️ Legacy constraint cleanup skipped: {e}")
     # --- Student Profile table ---
     for col, ctype in [
         ("email", "VARCHAR"),
