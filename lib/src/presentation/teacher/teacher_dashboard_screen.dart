@@ -7,6 +7,7 @@ import '../profile/profile_provider.dart';
 import 'study_plan_screen.dart';
 import '../dashboard/attendance_dashboard_screen.dart';
 import '../dashboard/admin_assessments_screen.dart';
+import '../auth/login_screen.dart';
 
 class TeacherDashboardScreen extends ConsumerStatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -19,6 +20,14 @@ class _TeacherDashboardScreenState extends ConsumerState<TeacherDashboardScreen>
   bool _isLoading = true;
   List<dynamic> _subjects = [];
   int _currentIndex = 0;
+
+  void _logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+  }
 
   @override
   void initState() {
@@ -127,6 +136,13 @@ class _TeacherDashboardScreenState extends ConsumerState<TeacherDashboardScreen>
       floating: false,
       pinned: true,
       backgroundColor: AppColors.background,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout, color: Colors.white),
+          tooltip: 'Logout',
+          onPressed: _logout,
+        ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(
