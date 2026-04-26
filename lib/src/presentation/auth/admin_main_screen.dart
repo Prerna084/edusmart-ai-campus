@@ -5,6 +5,7 @@ import '../dashboard/attendance_dashboard_screen.dart';
 import '../dashboard/attendance_history_screen.dart';
 import '../dashboard/student_list_screen.dart';
 import '../dashboard/admin_assessments_screen.dart';
+import '../dashboard/admin_course_assignment_screen.dart';
 import 'login_screen.dart';
 
 /// Admin-only shell with two tabs:
@@ -24,7 +25,7 @@ class _AdminMainScreenState extends State<AdminMainScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -79,6 +80,10 @@ class _AdminMainScreenState extends State<AdminMainScreen>
               icon: Icon(Icons.assignment),
               text: 'Tests',
             ),
+            Tab(
+              icon: Icon(Icons.library_books),
+              text: 'Assign',
+            ),
           ],
         ),
       ),
@@ -99,6 +104,9 @@ class _AdminMainScreenState extends State<AdminMainScreen>
 
           // Tab 3 — Admin Assessments and results
           const AdminAssessmentsScreen(),
+
+          // Tab 4 — Admin Course Assignments
+          const AdminCourseAssignmentScreen(),
         ],
       ),
     );

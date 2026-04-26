@@ -1257,9 +1257,52 @@ def get_student_test_results(user_id: int, db: Session = Depends(get_db)):
             "total_questions": r.total_questions,
             "teacher_feedback": r.teacher_feedback,
             "completed_at": r.completed_at.isoformat() if r.completed_at else None,
-            "attempts": attempts_map.get(r.test_id, 0)
         } for r in results
     ]
+
+@app.get("/admin/teachers")
+def get_all_teachers(db: Session = Depends(get_db)):
+    """Returns a list of all users with the 'teacher' role."""
+    teachers = db.query(User).filter(User.role == "teacher").all()
+    return [{"id": t.id, "name": t.name, "email": t.email} for t in teachers]
+
+@app.post("/admin/assign-subject")
+def assign_subject_to_teacher(assignment: schemas.TeacherSubjectCreate, db: Session = Depends(get_db)):
+    """Assigns a subject to a teacher for a specific semester, batch, and section."""
+    
+    # Check if teacher exists
+    teacher = db.query(User).filter(User.id == assignment.teacher_id, User.role == "teacher").first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    # Check if subject exists
+    subject = db.query(Subject).filter(Subject.id == assignment.subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    # Check for duplicate assignment
+    existing = db.query(TeacherSubject).filter(
+        TeacherSubject.teacher_id == assignment.teacher_id,
+        TeacherSubject.subject_id == assignment.subject_id,
+        TeacherSubject.batch == assignment.batch,
+        TeacherSubject.section == assignment.section
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="This teacher is already assigned to this subject for this batch and section.")
+
+    new_assignment = TeacherSubject(
+        teacher_id=assignment.teacher_id,
+        subject_id=assignment.subject_id,
+        semester=assignment.semester,
+        batch=assignment.batch,
+        section=assignment.section
+    )
+    db.add(new_assignment)
+    db.commit()
+    db.refresh(new_assignment)
+    
+    return {"message": "Subject assigned successfully", "assignment_id": new_assignment.id}
 @app.get("/teachers/{teacher_id}/subjects", response_model=list[schemas.TeacherSubjectOut])
 def get_teacher_subjects(teacher_id: int, db: Session = Depends(get_db)):
     assignments = db.query(TeacherSubject, Subject.title).join(Subject, TeacherSubject.subject_id == Subject.id).filter(TeacherSubject.teacher_id == teacher_id).all()

@@ -74,6 +74,13 @@ class TeacherRegisterRequest(BaseModel):
     designation: Optional[str] = "Assistant Professor"
     teacher_reg_no: Optional[str] = None
 
+class TeacherSubjectCreate(BaseModel):
+    teacher_id: int
+    subject_id: int
+    semester: str
+    batch: str
+    section: str
+
 class TeacherSubjectOut(BaseModel):
     id: int
     subject_id: int
