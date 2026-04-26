@@ -263,6 +263,15 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
         # 1. Check Student Profile
         student_profile = db.query(StudentProfile).filter(StudentProfile.email == data.email).first()
         if student_profile:
+            # Auto-migrate password for existing accounts
+            if not student_profile.password_hash:
+                from sqlalchemy import text
+                result = db.execute(text("SELECT password_hash FROM users WHERE id = :uid"), {"uid": student_profile.user_id}).fetchone()
+                if result and result[0]:
+                    student_profile.password_hash = result[0]
+                    db.commit()
+                    db.refresh(student_profile)
+
             if student_profile.password_hash != data.password:
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             user = db.query(User).filter(User.id == student_profile.user_id).first()
@@ -287,7 +296,17 @@ def login_student(data: schemas.LoginRequest, db: Session = Depends(get_db)):
         if user:
             if user.role == "teacher":
                 teacher_profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == user.id).first()
-                if teacher_profile and teacher_profile.password_hash == data.password:
+                if teacher_profile:
+                    # Auto-migrate password for existing accounts
+                    if not teacher_profile.password_hash:
+                        from sqlalchemy import text
+                        result = db.execute(text("SELECT password_hash FROM users WHERE id = :uid"), {"uid": teacher_profile.user_id}).fetchone()
+                        if result and result[0]:
+                            teacher_profile.password_hash = result[0]
+                            db.commit()
+                            db.refresh(teacher_profile)
+
+                    if teacher_profile.password_hash == data.password:
                     return {
                         "user_id": user.id,
                         "name": user.name,
