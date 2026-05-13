@@ -58,6 +58,7 @@ class _AdminMainScreenState extends State<AdminMainScreen>
           ),
         ],
         bottom: TabBar(
+          isScrollable: true,
           controller: _tabController,
           indicatorColor: AppColors.primaryStart,
           labelColor: AppColors.primaryStart,
